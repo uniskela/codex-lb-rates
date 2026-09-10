@@ -1,0 +1,106 @@
+blueprint:
+  name: Codex-LB Rates quota warning with hysteresis
+  description: >-
+    Warn once when a remaining-percentage sensor drops to or below the threshold,
+    then rearm after remaining rises by the recovery margin. Create a dedicated
+    input_boolean helper without a forced initial value so its state survives
+    restarts. Each automation needs its own helper. Unknown or non-numeric
+    readings leave the helper unchanged. Failed actions may retry; delivery is
+    not guaranteed exactly once.
+  domain: automation
+  homeassistant:
+    min_version: "2024.8.0"
+  input:
+    remaining_sensor:
+      name: Remaining percentage sensor
+      description: >-
+        Select a Codex-LB Rates remaining-% sensor (account or pool), not a
+        consumed-usage value. Unit must be %.
+      selector:
+        entity:
+          filter:
+            domain: sensor
+            unit_of_measurement: "%"
+    warning_threshold:
+      name: Warning threshold (remaining %)
+      description: Warn when remaining is at or below this value.
+      default: 20
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+          mode: box
+    hysteresis:
+      name: Recovery margin
+      description: >-
+        Percentage points above the threshold required to rearm the warning
+        (remaining must reach threshold + margin).
+      default: 5
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: pp
+          mode: box
+    warning_state:
+      name: Persistent warning helper
+      description: A separate input_boolean for this automation; leave its initial value unset.
+      selector:
+        entity:
+          filter:
+            domain: input_boolean
+    warning_action:
+      name: Warning action
+      description: The action to perform before marking this warning as delivered.
+      selector:
+        action: {}
+
+triggers:
+  - trigger: state
+    entity_id: !input remaining_sensor
+  - trigger: homeassistant
+    event: start
+  - trigger: time_pattern
+    minutes: "/5"
+
+variables:
+  remaining_entity: !input remaining_sensor
+  threshold: !input warning_threshold
+  recovery_margin: !input hysteresis
+  warning_helper: !input warning_state
+  remaining: "{{ states(remaining_entity) | float(-1) }}"
+  recover_at: "{{ [100, threshold | float + recovery_margin | float] | min }}"
+  # Margin 0: rearm only when remaining is strictly above the threshold so
+  # HA start / 5m ticks do not oscillate warn ↔ rearm at exactly the threshold.
+  should_recover: >-
+    {{ is_state(warning_helper, 'on') and (
+         (recovery_margin | float == 0 and remaining | float(-1) > threshold | float)
+         or (recovery_margin | float > 0 and remaining | float(-1) >= recover_at | float)
+       ) }}
+  should_warn: >-
+    {{ is_state(warning_helper, 'off')
+       and remaining | float(-1) <= threshold | float }}
+
+actions:
+  - condition: template
+    value_template: >-
+      {{ is_number(states(remaining_entity))
+         and 0 <= remaining <= 100
+         and state_attr(remaining_entity, 'unit_of_measurement') == '%'
+         and states(warning_helper) in ['on', 'off'] }}
+  - choose:
+      - conditions: "{{ should_recover }}"
+        sequence:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: !input warning_state
+      - conditions: "{{ should_warn }}"
+        sequence:
+          - sequence: !input warning_action
+          - action: input_boolean.turn_on
+            target:
+              entity_id: !input warning_state
+
+mode: single
+max_exceeded: silent
