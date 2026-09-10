@@ -1,0 +1,99 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Codex Rates",
+        "description": "Choose how to read Codex quota information.",
+        "data": {
+          "mode": "Mode"
+        }
+      },
+      "codex_lb": {
+        "title": "Codex-LB",
+        "description": "Connect to your Codex-LB dashboard. Leave password empty if dashboard auth is disabled.",
+        "data": {
+          "name": "Name",
+          "base_url": "Base URL",
+          "password": "Dashboard password",
+          "totp_secret": "TOTP secret (optional)",
+          "verify_ssl": "Verify SSL"
+        }
+      },
+      "chatgpt_method": {
+        "title": "ChatGPT / Codex CLI",
+        "description": "Choose how to authenticate.",
+        "data": {
+          "auth_method": "Auth method"
+        }
+      },
+      "device_code": {
+        "title": "Device code login",
+        "description": "Open {verification_url} and enter code **{user_code}**. After authorizing, click Submit. If it is still pending, wait a few seconds and submit again."
+      },
+      "paste_start": {
+        "title": "Browser login",
+        "description": "Open this URL, sign in, then continue:\n\n{authorization_url}"
+      },
+      "paste_callback": {
+        "title": "Paste callback URL",
+        "description": "After login, your browser redirects to localhost:1455. Paste the full callback URL (including code and state).",
+        "data": {
+          "callback_url": "Callback URL"
+        }
+      },
+      "auth_json": {
+        "title": "Import auth.json",
+        "description": "Path to Codex CLI auth.json visible inside Home Assistant.",
+        "data": {
+          "auth_json_path": "Path"
+        }
+      },
+      "tokens": {
+        "title": "Paste tokens",
+        "description": "Advanced: paste ChatGPT access token and account ID.",
+        "data": {
+          "access_token": "Access token",
+          "account_id": "ChatGPT account ID",
+          "refresh_token": "Refresh token",
+          "id_token": "ID token"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect",
+      "invalid_auth": "Invalid authentication",
+      "invalid_url": "Invalid URL",
+      "unknown": "Unexpected error",
+      "oauth_timeout": "Still waiting for authorization — finish sign-in, then submit again",
+      "auth_json_missing": "auth.json not found"
+    },
+    "abort": {
+      "already_configured": "This account or Codex-LB host is already configured",
+      "device_code_unavailable": "Device code login is unavailable; try paste-callback or auth.json",
+      "cannot_connect": "Could not connect to OpenAI"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Codex Rates options",
+        "data": {
+          "poll_interval": "Poll interval (seconds)",
+          "rich_sensors": "Enable rich sensors (plan, credits, last refresh)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "remaining_5h": { "name": "5h remaining" },
+      "remaining_weekly": { "name": "Weekly remaining" },
+      "reset_5h": { "name": "5h resets" },
+      "reset_weekly": { "name": "Weekly resets" },
+      "status": { "name": "Status" },
+      "plan_type": { "name": "Plan" },
+      "credits_balance": { "name": "Credits balance" },
+      "last_refresh": { "name": "Last refresh" }
+    }
+  }
+}

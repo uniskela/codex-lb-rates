@@ -1,0 +1,17 @@
+.pytest_cache/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.coverage
+htmlcov/
+.DS_Store
+.env
+.env.*
+auth.json
+**/auth.json
+*.pem
+*.key
+.storage/

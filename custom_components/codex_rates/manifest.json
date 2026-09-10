@@ -1,0 +1,14 @@
+{
+  "domain": "codex_rates",
+  "name": "Codex Rates",
+  "after_dependencies": [],
+  "codeowners": ["@uniskela"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/uniskela/codex-rates",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/uniskela/codex-rates/issues",
+  "requirements": ["pyotp>=2.9.0"],
+  "version": "0.1.0"
+}
