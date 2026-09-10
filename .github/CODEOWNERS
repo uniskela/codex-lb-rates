@@ -1,0 +1,3 @@
+# Default owner for all paths — required reviews when branch protection
+# has "Require review from Code Owners" enabled.
+* @uniskela

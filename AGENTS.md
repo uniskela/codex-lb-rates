@@ -71,3 +71,10 @@ When opening or merging a PR that should release:
 ### HACS note
 
 HACS reads `custom_components/codex_rates/manifest.json` → `version`. That field is updated by Release Please via `extra-files` in `release-please-config.json`. Keep that jsonpath in sync if the manifest path changes.
+
+## Merging and CODEOWNERS
+
+- [`.github/CODEOWNERS`](.github/CODEOWNERS) assigns **@uniskela** as owner of the whole tree.
+- `main` requires a pull request, an approving review, and **code-owner review**.
+- Admins can still merge their own PRs (admin enforcement is off so the solo maintainer is not locked out).
+- Agents must **not** merge PRs to `main` unless the user explicitly asks and the GitHub actor is allowed; prefer opening PRs for @uniskela to review.
