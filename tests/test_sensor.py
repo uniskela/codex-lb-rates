@@ -21,7 +21,9 @@ def test_chatgpt_excludes_monthly_includes_reset_credits() -> None:
     keys = {
         d.key
         for d in ACCOUNT_SENSORS
-        if _include_description(d, rich=False, is_codex_lb=False)
+        if _include_description(
+            d, rich=False, is_codex_lb=False, has_monthly=False
+        )
     }
     assert "remaining_monthly" not in keys
     assert "reset_monthly" not in keys
@@ -30,23 +32,43 @@ def test_chatgpt_excludes_monthly_includes_reset_credits() -> None:
     assert "plan_type" not in keys  # rich
 
 
-def test_codex_lb_includes_monthly() -> None:
+def test_codex_lb_includes_monthly_when_present() -> None:
     keys = {
         d.key
         for d in ACCOUNT_SENSORS
-        if _include_description(d, rich=False, is_codex_lb=True)
+        if _include_description(d, rich=False, is_codex_lb=True, has_monthly=True)
     }
     assert "remaining_monthly" in keys
     assert "reset_monthly" in keys
     assert "reset_credits" in keys
 
 
+def test_codex_lb_excludes_monthly_when_absent() -> None:
+    keys = {
+        d.key
+        for d in ACCOUNT_SENSORS
+        if _include_description(d, rich=False, is_codex_lb=True, has_monthly=False)
+    }
+    assert "remaining_monthly" not in keys
+    assert "reset_monthly" not in keys
+
+
 def test_allowed_sensor_keys_chatgpt_drops_monthly() -> None:
     entry = SimpleNamespace(data={CONF_MODE: MODE_CHATGPT}, options={})
-    keys = allowed_sensor_keys(entry)  # type: ignore[arg-type]
+    snapshot = ProviderSnapshot(accounts=[AccountQuota(account_id="acc1")])
+    keys = allowed_sensor_keys(entry, snapshot)  # type: ignore[arg-type]
     assert "remaining_monthly" not in keys
     assert "reset_monthly" not in keys
     assert "reset_credits" in keys
+    assert "remaining_5h" in keys
+
+
+def test_allowed_sensor_keys_lb_drops_empty_monthly() -> None:
+    entry = SimpleNamespace(data={CONF_MODE: MODE_CODEX_LB}, options={})
+    snapshot = ProviderSnapshot(accounts=[AccountQuota(account_id="acc1")])
+    keys = allowed_sensor_keys(entry, snapshot)  # type: ignore[arg-type]
+    assert "remaining_monthly" not in keys
+    assert "reset_monthly" not in keys
     assert "remaining_5h" in keys
 
 
@@ -80,14 +102,18 @@ def test_live_device_suffixes() -> None:
 
 def _patch_registries(sensor_mod, device_reg, entity_reg):
     original_dr_get = sensor_mod.dr.async_get
+    original_dr_entries = getattr(sensor_mod.dr, "async_entries_for_config_entry", None)
     original_er_get = sensor_mod.er.async_get
     original_er_entries = sensor_mod.er.async_entries_for_config_entry
     sensor_mod.dr.async_get = lambda _hass: device_reg
+    sensor_mod.dr.async_entries_for_config_entry = (
+        lambda registry, entry_id: list(getattr(registry, "devices", {}).values())
+    )
     sensor_mod.er.async_get = lambda _hass: entity_reg
     sensor_mod.er.async_entries_for_config_entry = (
         lambda registry, entry_id: registry._entries
     )
-    return original_dr_get, original_er_get, original_er_entries
+    return original_dr_get, original_dr_entries, original_er_get, original_er_entries
 
 
 def test_cleanup_orphan_devices_removes_stale() -> None:
@@ -139,6 +165,7 @@ def test_cleanup_orphan_devices_removes_stale() -> None:
     finally:
         (
             sensor_mod.dr.async_get,
+            sensor_mod.dr.async_entries_for_config_entry,
             sensor_mod.er.async_get,
             sensor_mod.er.async_entries_for_config_entry,
         ) = originals
@@ -188,8 +215,55 @@ def test_cleanup_removes_chatgpt_monthly_entities() -> None:
     finally:
         (
             sensor_mod.dr.async_get,
+            sensor_mod.dr.async_entries_for_config_entry,
             sensor_mod.er.async_get,
             sensor_mod.er.async_entries_for_config_entry,
         ) = originals
 
     assert set(entity_reg.removed) == {"sensor.monthly", "sensor.reset_m"}
+
+
+def test_cleanup_removes_lb_monthly_when_api_omits_monthly() -> None:
+    class FakeEntity:
+        def __init__(self, entity_id: str, unique_id: str) -> None:
+            self.entity_id = entity_id
+            self.unique_id = unique_id
+
+    class FakeEntityRegistry:
+        def __init__(self) -> None:
+            self.removed: list[str] = []
+            self._entries = [
+                FakeEntity("sensor.ok", "entry1_acc1_remaining_5h"),
+                FakeEntity("sensor.monthly", "entry1_acc1_remaining_monthly"),
+                FakeEntity("sensor.pool_m", "entry1_pool_remaining_monthly"),
+            ]
+
+        def async_remove(self, entity_id: str) -> None:
+            self.removed.append(entity_id)
+
+    class FakeDeviceRegistry:
+        devices: dict = {}
+
+        def async_remove_device(self, device_id: str) -> None:
+            raise AssertionError("should not remove devices")
+
+    entry = SimpleNamespace(entry_id="entry1", data={CONF_MODE: MODE_CODEX_LB}, options={})
+    snapshot = ProviderSnapshot(accounts=[AccountQuota(account_id="acc1")])
+    hass = SimpleNamespace()
+    entity_reg = FakeEntityRegistry()
+    device_reg = FakeDeviceRegistry()
+
+    import custom_components.codex_rates.sensor as sensor_mod
+
+    originals = _patch_registries(sensor_mod, device_reg, entity_reg)
+    try:
+        cleanup_orphan_devices(hass, entry, snapshot)  # type: ignore[arg-type]
+    finally:
+        (
+            sensor_mod.dr.async_get,
+            sensor_mod.dr.async_entries_for_config_entry,
+            sensor_mod.er.async_get,
+            sensor_mod.er.async_entries_for_config_entry,
+        ) = originals
+
+    assert set(entity_reg.removed) == {"sensor.monthly", "sensor.pool_m"}

@@ -112,6 +112,7 @@ def _ensure_homeassistant_stubs() -> None:
     device_registry = _mod("homeassistant.helpers.device_registry")
     device_registry.DeviceInfo = dict
     device_registry.async_get = lambda hass: None
+    device_registry.async_entries_for_config_entry = lambda registry, entry_id: []
 
     entity_registry = _mod("homeassistant.helpers.entity_registry")
     entity_registry.async_get = lambda hass: None

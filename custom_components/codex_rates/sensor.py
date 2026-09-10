@@ -169,14 +169,31 @@ _POOL_SENSOR_KEYS = frozenset(
     {"remaining_5h", "remaining_weekly", "remaining_monthly"}
 )
 _ACCOUNT_SENSOR_KEYS = frozenset(desc.key for desc in ACCOUNT_SENSORS)
+_MONTHLY_SENSOR_KEYS = frozenset(
+    {"remaining_monthly", "reset_monthly"}
+)
+
+
+def snapshot_has_monthly(snapshot: ProviderSnapshot) -> bool:
+    """True when any account reports a monthly remaining % or reset time."""
+    return any(
+        account.remaining_monthly is not None or account.reset_monthly is not None
+        for account in snapshot.accounts
+    )
 
 
 def _include_description(
-    description: CodexRatesSensorDescription, *, rich: bool, is_codex_lb: bool
+    description: CodexRatesSensorDescription,
+    *,
+    rich: bool,
+    is_codex_lb: bool,
+    has_monthly: bool,
 ) -> bool:
     if description.rich and not rich:
         return False
     if description.codex_lb_only and not is_codex_lb:
+        return False
+    if description.key in _MONTHLY_SENSOR_KEYS and not has_monthly:
         return False
     return True
 
@@ -198,10 +215,16 @@ async def async_setup_entry(
         snapshot = coordinator.data
 
     assert snapshot is not None
+    has_monthly = snapshot_has_monthly(snapshot)
 
     for account in snapshot.accounts:
         for description in ACCOUNT_SENSORS:
-            if not _include_description(description, rich=rich, is_codex_lb=is_codex_lb):
+            if not _include_description(
+                description,
+                rich=rich,
+                is_codex_lb=is_codex_lb,
+                has_monthly=has_monthly,
+            ):
                 continue
             entities.append(
                 CodexAccountSensor(coordinator, entry, account.account_id, description)
@@ -212,11 +235,12 @@ async def async_setup_entry(
         entities.append(
             CodexPoolSensor(coordinator, entry, "remaining_weekly", "All accounts weekly remaining")
         )
-        entities.append(
-            CodexPoolSensor(
-                coordinator, entry, "remaining_monthly", "All accounts monthly remaining"
+        if has_monthly:
+            entities.append(
+                CodexPoolSensor(
+                    coordinator, entry, "remaining_monthly", "All accounts monthly remaining"
+                )
             )
-        )
 
     async_add_entities(entities)
     cleanup_orphan_devices(hass, entry, snapshot)
@@ -226,6 +250,7 @@ async def async_setup_entry(
         if coordinator.data is None:
             return
         cleanup_orphan_devices(hass, entry, coordinator.data)
+        monthly_now = snapshot_has_monthly(coordinator.data)
         existing = {
             (e.account_id if isinstance(e, CodexAccountSensor) else None)
             for e in entities
@@ -237,7 +262,10 @@ async def async_setup_entry(
                 continue
             for description in ACCOUNT_SENSORS:
                 if not _include_description(
-                    description, rich=rich, is_codex_lb=is_codex_lb
+                    description,
+                    rich=rich,
+                    is_codex_lb=is_codex_lb,
+                    has_monthly=monthly_now,
                 ):
                     continue
                 new_entities.append(
@@ -258,17 +286,27 @@ def live_device_suffixes(entry: ConfigEntry, snapshot: ProviderSnapshot) -> set[
     return live
 
 
-def allowed_sensor_keys(entry: ConfigEntry) -> set[str]:
-    """Sensor keys that should exist for this config entry's mode/options."""
+def allowed_sensor_keys(
+    entry: ConfigEntry, snapshot: ProviderSnapshot | None = None
+) -> set[str]:
+    """Sensor keys that should exist for this config entry's mode/options/data."""
     rich = entry.options.get(CONF_RICH_SENSORS, DEFAULT_RICH_SENSORS)
     is_codex_lb = entry.data.get(CONF_MODE) == MODE_CODEX_LB
+    has_monthly = snapshot_has_monthly(snapshot) if snapshot is not None else is_codex_lb
     keys = {
         description.key
         for description in ACCOUNT_SENSORS
-        if _include_description(description, rich=rich, is_codex_lb=is_codex_lb)
+        if _include_description(
+            description,
+            rich=rich,
+            is_codex_lb=is_codex_lb,
+            has_monthly=has_monthly,
+        )
     }
     if is_codex_lb:
-        keys |= set(_POOL_SENSOR_KEYS)
+        keys |= {"remaining_5h", "remaining_weekly"}
+        if has_monthly:
+            keys.add("remaining_monthly")
     return keys
 
 
@@ -306,13 +344,13 @@ def cleanup_orphan_devices(
     Drops:
     - devices for account_ids missing from the snapshot
     - entities for those accounts
-    - entities whose sensor key is not created for the current mode/options
-      (e.g. ChatGPT monthly remaining/resets left from an older version)
+    - entities whose sensor key is not created for the current mode/options/data
+      (e.g. monthly sensors when the API never reports a monthly window)
 
     Returns removed device identifier suffixes (for tests).
     """
     live = live_device_suffixes(entry, snapshot)
-    allowed_keys = allowed_sensor_keys(entry)
+    allowed_keys = allowed_sensor_keys(entry, snapshot)
     prefix = f"{entry.entry_id}_"
     removed: list[str] = []
 
@@ -322,7 +360,11 @@ def cleanup_orphan_devices(
         device_reg = None
 
     if device_reg is not None:
-        for device in list(device_reg.devices.values()):
+        try:
+            devices = list(dr.async_entries_for_config_entry(device_reg, entry.entry_id))
+        except Exception:  # noqa: BLE001 — older HA / stubs
+            devices = list(getattr(device_reg, "devices", {}).values())
+        for device in devices:
             for domain, ident in device.identifiers:
                 if domain != DOMAIN or not ident.startswith(prefix):
                     continue
