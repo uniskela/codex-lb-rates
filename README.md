@@ -107,6 +107,8 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
+Releases are automated with [Release Please](https://github.com/googleapis/release-please). Prefer [Conventional Commits](https://www.conventionalcommits.org/) on `main` (`feat:`, `fix:`, etc.). After merge, Release Please opens a release PR that bumps `version.txt`, `custom_components/codex_rates/manifest.json`, and `CHANGELOG.md`, then tags/publishes the GitHub release when that PR merges.
+
 ## License
 
 MIT
