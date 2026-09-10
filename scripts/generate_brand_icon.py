@@ -5,7 +5,7 @@ import math
 
 from PIL import Image, ImageDraw
 
-out = Path(__file__).resolve().parents[1] / "brand"
+out = Path(__file__).resolve().parents[1] / "custom_components" / "codex_rates" / "brand"
 out.mkdir(parents=True, exist_ok=True)
 
 size = 512
