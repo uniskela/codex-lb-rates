@@ -4,12 +4,13 @@ Home Assistant integration for **Codex 5-hour** and **weekly** quota remaining�
 
 [![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![Validate](https://github.com/uniskela/codex-lb-rates/actions/workflows/validate.yml/badge.svg)](https://github.com/uniskela/codex-lb-rates/actions/workflows/validate.yml)
+[![CodeQL](https://img.shields.io/badge/CodeQL-enabled-brightgreen)](https://github.com/uniskela/codex-lb-rates/security/code-scanning)
 [![License](https://img.shields.io/github/license/uniskela/codex-lb-rates)](LICENSE)
 
 ## Features
 
-- **Codex-LB pool monitoring** — every pooled account as its own device, plus pool gauges (mean remaining % for 5h and weekly across active accounts)
-- **Per-account sensors** — remaining %, reset times, status (rich sensors optional)
+- **Codex-LB pool monitoring** — every pooled account as its own device, plus pool gauges (mean remaining % for 5h / weekly / monthly across active accounts)
+- **Per-account sensors** — remaining %, `Xd XXh` reset countdowns, reset credits, status (rich sensors optional)
 - **ChatGPT / Codex CLI** — device-code OAuth, browser paste-callback, `auth.json`, or advanced tokens
 - Secrets stay in the config entry (password inputs, redacted diagnostics)
 
@@ -32,15 +33,16 @@ Home Assistant integration for **Codex 5-hour** and **weekly** quota remaining�
 
 You get:
 
-- Per-account sensors: 5h / weekly / monthly remaining %, reset times, status
-- Optional rich sensors: plan, credits balance, **reset credits** (with expiry attribute), last refresh
+- Per-account sensors: 5h / weekly / monthly remaining %, reset countdowns (`Xd XXh` with `resets_at` attribute), **reset credits**, status
+- Optional rich sensors: plan, credits balance, last refresh
 - Pool device: mean remaining % for 5h, weekly, and monthly across active accounts (attributes include min/max/counts; when window lengths differ, mean prefers the most common duration and exposes `by_minutes`)
+- Stale account devices from older identifier formats are pruned automatically after upgrade/reload
 
 > Codex-LB **API keys cannot** read account quotas — the accounts API requires dashboard session auth.
 
 ## ChatGPT / Codex CLI setup
 
-Use this when you are not running Codex-LB and still want the same 5h / weekly sensors for one ChatGPT account.
+Use this when you are not running Codex-LB and still want 5h / weekly / **reset credits** sensors for one ChatGPT account. Monthly sensors are Codex-LB only (ChatGPT usage has no monthly window).
 
 | Method | Best for |
 |--------|----------|
@@ -49,12 +51,12 @@ Use this when you are not running Codex-LB and still want the same 5h / weekly s
 | **auth.json** | Bind-mount `~/.codex/auth.json` into HA and point at the path |
 | **Paste tokens** | Advanced / last resort |
 
-Tokens are stored in the config entry (not YAML). Refresh tokens renew access automatically when possible. Add the integration again for another account.
+Tokens are stored in the config entry (not YAML). Refresh tokens renew access automatically when possible. Add the integration again for another account. Reload the integration after upgrading so reset sensors switch from fuzzy timestamps to `Xd XXh` countdowns and orphan devices are cleaned up.
 
 ## Options
 
 - **Poll interval** (default 60s, minimum 30s)
-- **Enable rich sensors** — plan type, credits balance, reset credits, last refresh
+- **Enable rich sensors** — plan type, credits balance, last refresh
 
 ## Lovelace example
 

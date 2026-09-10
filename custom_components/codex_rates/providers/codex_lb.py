@@ -290,7 +290,10 @@ class CodexLbProvider:
         )
 
         status = str(_first(item, "status") or "unknown").lower()
-        account_id = str(_first(item, "account_id", "accountId", "id") or "")
+        # Prefer stable ChatGPT account ids; avoid generic `id` flipping device unique_ids.
+        account_id = str(_first(item, "account_id", "accountId") or "")
+        if not account_id:
+            account_id = str(_first(item, "id") or "")
         if not account_id:
             account_id = str(_first(item, "email") or "unknown")
 

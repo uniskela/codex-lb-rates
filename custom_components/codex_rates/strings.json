@@ -80,7 +80,7 @@
         "title": "Codex-LB Rates options",
         "data": {
           "poll_interval": "Poll interval (seconds)",
-          "rich_sensors": "Enable rich sensors (plan, credits, reset credits, last refresh)"
+          "rich_sensors": "Enable rich sensors (plan, credits balance, last refresh)"
         }
       }
     }

@@ -16,6 +16,8 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, EntityCategory
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -29,6 +31,7 @@ from .const import (
     ATTR_MAX,
     ATTR_MIN,
     ATTR_RESET_CREDITS_EXPIRE,
+    ATTR_RESETS_AT,
     ATTR_USED_PERCENT,
     ATTR_WINDOW_MINUTES,
     CONF_MODE,
@@ -39,7 +42,7 @@ from .const import (
     POOL_DEVICE_ID,
 )
 from .coordinator import CodexRatesCoordinator
-from .models import AccountQuota, ProviderSnapshot, WindowAggregate
+from .models import AccountQuota, ProviderSnapshot, WindowAggregate, format_reset_countdown
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -49,6 +52,17 @@ class CodexRatesSensorDescription(SensorEntityDescription):
     value_fn: Callable[[AccountQuota], float | str | datetime | None]
     attrs_fn: Callable[[AccountQuota], dict[str, Any]] | None = None
     rich: bool = False
+    codex_lb_only: bool = False
+
+
+def _reset_attrs(when: datetime | None, account: AccountQuota) -> dict[str, Any]:
+    attrs: dict[str, Any] = {
+        ATTR_ACCOUNT_ID: account.account_id,
+        ATTR_EMAIL: account.email,
+    }
+    if when is not None:
+        attrs[ATTR_RESETS_AT] = when.isoformat()
+    return attrs
 
 
 ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
@@ -78,33 +92,51 @@ ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda a: a.remaining_monthly,
         attrs_fn=lambda a: _pct_attrs(a.used_monthly, a.window_minutes_monthly, a),
+        codex_lb_only=True,
     ),
     CodexRatesSensorDescription(
         key="reset_5h",
         translation_key="reset_5h",
         name="5h resets",
-        device_class=SensorDeviceClass.TIMESTAMP,
-        value_fn=lambda a: a.reset_5h,
+        value_fn=lambda a: format_reset_countdown(a.reset_5h),
+        attrs_fn=lambda a: _reset_attrs(a.reset_5h, a),
     ),
     CodexRatesSensorDescription(
         key="reset_weekly",
         translation_key="reset_weekly",
         name="Weekly resets",
-        device_class=SensorDeviceClass.TIMESTAMP,
-        value_fn=lambda a: a.reset_weekly,
+        value_fn=lambda a: format_reset_countdown(a.reset_weekly),
+        attrs_fn=lambda a: _reset_attrs(a.reset_weekly, a),
     ),
     CodexRatesSensorDescription(
         key="reset_monthly",
         translation_key="reset_monthly",
         name="Monthly resets",
-        device_class=SensorDeviceClass.TIMESTAMP,
-        value_fn=lambda a: a.reset_monthly,
+        value_fn=lambda a: format_reset_countdown(a.reset_monthly),
+        attrs_fn=lambda a: _reset_attrs(a.reset_monthly, a),
+        codex_lb_only=True,
     ),
     CodexRatesSensorDescription(
         key="status",
         translation_key="status",
         name="Status",
         value_fn=lambda a: a.status,
+    ),
+    CodexRatesSensorDescription(
+        key="reset_credits",
+        translation_key="reset_credits",
+        name="Reset credits",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda a: a.reset_credits,
+        attrs_fn=lambda a: {
+            ATTR_ACCOUNT_ID: a.account_id,
+            ATTR_EMAIL: a.email,
+            **(
+                {ATTR_RESET_CREDITS_EXPIRE: a.reset_credits_expire_at.isoformat()}
+                if a.reset_credits_expire_at is not None
+                else {}
+            ),
+        },
     ),
     CodexRatesSensorDescription(
         key="plan_type",
@@ -123,24 +155,6 @@ ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
         rich=True,
     ),
     CodexRatesSensorDescription(
-        key="reset_credits",
-        translation_key="reset_credits",
-        name="Reset credits",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda a: a.reset_credits,
-        attrs_fn=lambda a: {
-            ATTR_ACCOUNT_ID: a.account_id,
-            ATTR_EMAIL: a.email,
-            **(
-                {ATTR_RESET_CREDITS_EXPIRE: a.reset_credits_expire_at.isoformat()}
-                if a.reset_credits_expire_at is not None
-                else {}
-            ),
-        },
-        rich=True,
-    ),
-    CodexRatesSensorDescription(
         key="last_refresh",
         translation_key="last_refresh",
         name="Last refresh",
@@ -151,6 +165,21 @@ ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
     ),
 )
 
+_POOL_SENSOR_KEYS = frozenset(
+    {"remaining_5h", "remaining_weekly", "remaining_monthly"}
+)
+_ACCOUNT_SENSOR_KEYS = frozenset(desc.key for desc in ACCOUNT_SENSORS)
+
+
+def _include_description(
+    description: CodexRatesSensorDescription, *, rich: bool, is_codex_lb: bool
+) -> bool:
+    if description.rich and not rich:
+        return False
+    if description.codex_lb_only and not is_codex_lb:
+        return False
+    return True
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -160,6 +189,7 @@ async def async_setup_entry(
     """Set up sensors from a config entry."""
     coordinator: CodexRatesCoordinator = hass.data[DOMAIN][entry.entry_id]
     rich = entry.options.get(CONF_RICH_SENSORS, DEFAULT_RICH_SENSORS)
+    is_codex_lb = entry.data.get(CONF_MODE) == MODE_CODEX_LB
 
     entities: list[SensorEntity] = []
     snapshot = coordinator.data
@@ -171,13 +201,13 @@ async def async_setup_entry(
 
     for account in snapshot.accounts:
         for description in ACCOUNT_SENSORS:
-            if description.rich and not rich:
+            if not _include_description(description, rich=rich, is_codex_lb=is_codex_lb):
                 continue
             entities.append(
                 CodexAccountSensor(coordinator, entry, account.account_id, description)
             )
 
-    if entry.data.get(CONF_MODE) == MODE_CODEX_LB:
+    if is_codex_lb:
         entities.append(CodexPoolSensor(coordinator, entry, "remaining_5h", "All accounts 5h remaining"))
         entities.append(
             CodexPoolSensor(coordinator, entry, "remaining_weekly", "All accounts weekly remaining")
@@ -189,11 +219,13 @@ async def async_setup_entry(
         )
 
     async_add_entities(entities)
+    cleanup_orphan_devices(hass, entry, snapshot)
 
     @callback
-    def _check_new_accounts() -> None:
+    def _on_coordinator_update() -> None:
         if coordinator.data is None:
             return
+        cleanup_orphan_devices(hass, entry, coordinator.data)
         existing = {
             (e.account_id if isinstance(e, CodexAccountSensor) else None)
             for e in entities
@@ -204,7 +236,9 @@ async def async_setup_entry(
             if account.account_id in existing:
                 continue
             for description in ACCOUNT_SENSORS:
-                if description.rich and not rich:
+                if not _include_description(
+                    description, rich=rich, is_codex_lb=is_codex_lb
+                ):
                     continue
                 new_entities.append(
                     CodexAccountSensor(coordinator, entry, account.account_id, description)
@@ -213,7 +247,106 @@ async def async_setup_entry(
             entities.extend(new_entities)
             async_add_entities(new_entities)
 
-    entry.async_on_unload(coordinator.async_add_listener(_check_new_accounts))
+    entry.async_on_unload(coordinator.async_add_listener(_on_coordinator_update))
+
+
+def live_device_suffixes(entry: ConfigEntry, snapshot: ProviderSnapshot) -> set[str]:
+    """Return device identifier suffixes that should remain for this entry."""
+    live = {account.account_id for account in snapshot.accounts}
+    if entry.data.get(CONF_MODE) == MODE_CODEX_LB:
+        live.add(POOL_DEVICE_ID)
+    return live
+
+
+def allowed_sensor_keys(entry: ConfigEntry) -> set[str]:
+    """Sensor keys that should exist for this config entry's mode/options."""
+    rich = entry.options.get(CONF_RICH_SENSORS, DEFAULT_RICH_SENSORS)
+    is_codex_lb = entry.data.get(CONF_MODE) == MODE_CODEX_LB
+    keys = {
+        description.key
+        for description in ACCOUNT_SENSORS
+        if _include_description(description, rich=rich, is_codex_lb=is_codex_lb)
+    }
+    if is_codex_lb:
+        keys |= set(_POOL_SENSOR_KEYS)
+    return keys
+
+
+def account_id_from_unique_id(entry_id: str, unique_id: str) -> str | None:
+    """Extract account/pool id from a sensor unique_id."""
+    prefix = f"{entry_id}_"
+    if not unique_id.startswith(prefix):
+        return None
+    rest = unique_id[len(prefix) :]
+    for key in _ACCOUNT_SENSOR_KEYS | _POOL_SENSOR_KEYS:
+        suffix = f"_{key}"
+        if rest.endswith(suffix):
+            return rest[: -len(suffix)]
+    return None
+
+
+def sensor_key_from_unique_id(entry_id: str, unique_id: str) -> str | None:
+    """Extract sensor key from a sensor unique_id."""
+    prefix = f"{entry_id}_"
+    if not unique_id.startswith(prefix):
+        return None
+    rest = unique_id[len(prefix) :]
+    for key in _ACCOUNT_SENSOR_KEYS | _POOL_SENSOR_KEYS:
+        suffix = f"_{key}"
+        if rest.endswith(suffix):
+            return key
+    return None
+
+
+def cleanup_orphan_devices(
+    hass: HomeAssistant, entry: ConfigEntry, snapshot: ProviderSnapshot
+) -> list[str]:
+    """Remove devices/entities that no longer belong to this entry.
+
+    Drops:
+    - devices for account_ids missing from the snapshot
+    - entities for those accounts
+    - entities whose sensor key is not created for the current mode/options
+      (e.g. ChatGPT monthly remaining/resets left from an older version)
+
+    Returns removed device identifier suffixes (for tests).
+    """
+    live = live_device_suffixes(entry, snapshot)
+    allowed_keys = allowed_sensor_keys(entry)
+    prefix = f"{entry.entry_id}_"
+    removed: list[str] = []
+
+    try:
+        device_reg = dr.async_get(hass)
+    except Exception:  # noqa: BLE001 — stubs / early init
+        device_reg = None
+
+    if device_reg is not None:
+        for device in list(device_reg.devices.values()):
+            for domain, ident in device.identifiers:
+                if domain != DOMAIN or not ident.startswith(prefix):
+                    continue
+                suffix = ident[len(prefix) :]
+                if suffix not in live:
+                    device_reg.async_remove_device(device.id)
+                    removed.append(suffix)
+
+    try:
+        entity_reg = er.async_get(hass)
+    except Exception:  # noqa: BLE001
+        entity_reg = None
+
+    if entity_reg is not None:
+        for entity in list(er.async_entries_for_config_entry(entity_reg, entry.entry_id)):
+            unique_id = entity.unique_id or ""
+            account_id = account_id_from_unique_id(entry.entry_id, unique_id)
+            sensor_key = sensor_key_from_unique_id(entry.entry_id, unique_id)
+            if account_id is None or sensor_key is None:
+                continue
+            if account_id not in live or sensor_key not in allowed_keys:
+                entity_reg.async_remove(entity.entity_id)
+
+    return removed
 
 
 def _pct_attrs(
@@ -256,10 +389,13 @@ class CodexAccountSensor(CoordinatorEntity[CodexRatesCoordinator], SensorEntity)
         self.account_id = account_id
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_{account_id}_{description.key}"
-        account = _account_from_data(coordinator.data, account_id)
-        name = account.name if account else account_id
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{entry.entry_id}_{account_id}")},
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        account = _account_from_data(self.coordinator.data, self.account_id)
+        name = account.name if account else self.account_id
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"{self._entry.entry_id}_{self.account_id}")},
             name=name,
             manufacturer="Codex-LB Rates",
             model="ChatGPT / Codex account",

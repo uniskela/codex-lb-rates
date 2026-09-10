@@ -1,8 +1,11 @@
 """Tests for models and pool aggregates."""
 
+from datetime import datetime, timezone
+
 from custom_components.codex_rates.models import (
     AccountQuota,
     compute_pool_aggregate,
+    format_reset_countdown,
     remaining_from_used,
 )
 
@@ -12,6 +15,28 @@ def test_remaining_from_used() -> None:
     assert remaining_from_used(0) == 100.0
     assert remaining_from_used(100) == 0.0
     assert remaining_from_used(None) is None
+
+
+def test_format_reset_countdown() -> None:
+    now = datetime(2026, 3, 1, 12, 0, tzinfo=timezone.utc)
+    assert format_reset_countdown(None, now=now) is None
+    assert (
+        format_reset_countdown(datetime(2026, 3, 1, 16, 0, tzinfo=timezone.utc), now=now)
+        == "4h"
+    )
+    assert (
+        format_reset_countdown(datetime(2026, 3, 5, 2, 0, tzinfo=timezone.utc), now=now)
+        == "3d 14h"
+    )
+    assert (
+        format_reset_countdown(datetime(2026, 3, 1, 11, 0, tzinfo=timezone.utc), now=now)
+        == "0h"
+    )
+    # Sub-hour remaining ceils to 1h
+    assert (
+        format_reset_countdown(datetime(2026, 3, 1, 12, 30, tzinfo=timezone.utc), now=now)
+        == "1h"
+    )
 
 
 def test_pool_aggregate_active_only_skips_null() -> None:

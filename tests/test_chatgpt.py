@@ -35,6 +35,10 @@ async def test_chatgpt_usage_mapping(aiohttp_client) -> None:
                     },
                 },
                 "credits": {"balance": "15.0"},
+                "rate_limit_reset_credits": {
+                    "available_count": 1,
+                    "applicable_available_count": 1,
+                },
             }
         )
 
@@ -56,8 +60,42 @@ async def test_chatgpt_usage_mapping(aiohttp_client) -> None:
     assert account.remaining_weekly == 50.0
     assert account.plan_type == "plus"
     assert account.credits_balance == "15.0"
+    assert account.reset_credits == 1
     assert account.status == "active"
     assert account.window_minutes_5h == 300
+
+
+@pytest.mark.asyncio
+async def test_chatgpt_reset_credits_zero_is_preserved(aiohttp_client) -> None:
+    async def usage(request: web.Request) -> web.Response:
+        return web.json_response(
+            {
+                "plan_type": "plus",
+                "rate_limit": {
+                    "allowed": True,
+                    "primary_window": {"used_percent": 0, "limit_window_seconds": 18000},
+                },
+                "rate_limit_reset_credits": {
+                    "available_count": 0,
+                    "applicable_available_count": 2,
+                },
+            }
+        )
+
+    app = web.Application()
+    app.router.add_get("/usage", usage)
+    client = await aiohttp_client(app)
+
+    async with aiohttp.ClientSession() as session:
+        provider = ChatGptProvider(
+            session,
+            access_token="tok",
+            account_id="acc-9",
+            usage_url=str(client.make_url("/usage")),
+        )
+        snapshot = await provider.async_validate()
+
+    assert snapshot.accounts[0].reset_credits == 0
 
 
 def test_load_auth_json(tmp_path: Path) -> None:

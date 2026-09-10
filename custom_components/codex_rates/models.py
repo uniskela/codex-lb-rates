@@ -169,3 +169,25 @@ def parse_iso_datetime(value: str | int | float | None) -> datetime | None:
         return dt
     except ValueError:
         return None
+
+
+def format_reset_countdown(
+    when: datetime | None, *, now: datetime | None = None
+) -> str | None:
+    """Format time until reset as ``Xd XXh`` / ``Xh`` (hours granularity)."""
+    if when is None:
+        return None
+    current = now or datetime.now(timezone.utc)
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    seconds = int((when - current).total_seconds())
+    if seconds <= 0:
+        return "0h"
+    # Ceil to whole hours so short remainders don't show as 0h early.
+    hours_total = (seconds + 3599) // 3600
+    days, hours = divmod(hours_total, 24)
+    if days >= 1:
+        return f"{days}d {hours}h"
+    return f"{hours}h"
