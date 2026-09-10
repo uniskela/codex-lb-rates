@@ -72,6 +72,8 @@ When opening or merging a PR that should release:
 
 HACS reads `custom_components/codex_rates/manifest.json` → `version`. That field is updated by Release Please via `extra-files` in `release-please-config.json`. Keep that jsonpath in sync if the manifest path changes.
 
+Brand images live in `custom_components/codex_rates/brand/` (`icon.png`, `logo.png`, dark/@2x variants). Home Assistant Core (2026.3+) serves them via `/api/brands/integration/codex_rates/...`. **HACS update/download cards may still show “icon not available”** until HACS uses that local brands proxy — that is a HACS frontend limitation, not a missing file in this repo. Regenerate assets with `python scripts/generate_brand_icon.py` (requires Pillow).
+
 ## Merging and CODEOWNERS
 
 - [`.github/CODEOWNERS`](.github/CODEOWNERS) assigns **@uniskela** as owner of the whole tree.
