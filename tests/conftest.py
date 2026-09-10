@@ -98,6 +98,9 @@ def _ensure_homeassistant_stubs() -> None:
         def __init__(self, coordinator):  # noqa: ANN001
             self.coordinator = coordinator
 
+        def __class_getitem__(cls, item):  # noqa: ANN001
+            return cls
+
         @property
         def available(self) -> bool:
             return True
@@ -108,6 +111,11 @@ def _ensure_homeassistant_stubs() -> None:
 
     device_registry = _mod("homeassistant.helpers.device_registry")
     device_registry.DeviceInfo = dict
+    device_registry.async_get = lambda hass: None
+
+    entity_registry = _mod("homeassistant.helpers.entity_registry")
+    entity_registry.async_get = lambda hass: None
+    entity_registry.async_entries_for_config_entry = lambda registry, entry_id: []
 
     entity_platform = _mod("homeassistant.helpers.entity_platform")
     entity_platform.AddEntitiesCallback = object
@@ -118,12 +126,26 @@ def _ensure_homeassistant_stubs() -> None:
     _mod("homeassistant.components")
     sensor = _mod("homeassistant.components.sensor")
 
+    from dataclasses import dataclass
+
+    @dataclass(frozen=True)
+    class SensorEntityDescription:
+        key: str | None = None
+        name: str | object | None = None
+        translation_key: str | None = None
+        native_unit_of_measurement: str | None = None
+        device_class: object | None = None
+        state_class: object | None = None
+        entity_category: object | None = None
+        entity_registry_enabled_default: bool = True
+        entity_registry_visible_default: bool = True
+        force_update: bool = False
+        icon: str | None = None
+        has_entity_name: bool = False
+        unit_of_measurement: str | None = None
+
     class SensorEntity:
         """Stub."""
-
-    class SensorEntityDescription:
-        def __init__(self, **kwargs):  # noqa: ANN003
-            self.__dict__.update(kwargs)
 
     sensor.SensorEntity = SensorEntity
     sensor.SensorEntityDescription = SensorEntityDescription

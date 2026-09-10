@@ -189,6 +189,19 @@ class ChatGptProvider:
         balance = credits.get("balance") if isinstance(credits, dict) else None
         plan = data.get("plan_type") or rate.get("planType") or rate.get("plan_type")
 
+        rlrc_raw = data.get("rate_limit_reset_credits") or data.get("rateLimitResetCredits")
+        rlrc = rlrc_raw if isinstance(rlrc_raw, dict) else {}
+        reset_credits = None
+        for key in (
+            "available_count",
+            "availableCount",
+            "applicable_available_count",
+            "applicableAvailableCount",
+        ):
+            if key in rlrc:
+                reset_credits = _as_int(rlrc.get(key))
+                break
+
         return AccountQuota(
             account_id=self._account_id,
             email=self._email,
@@ -204,6 +217,7 @@ class ChatGptProvider:
             window_minutes_weekly=window_weekly,
             plan_type=plan if isinstance(plan, str) else None,
             credits_balance=str(balance) if balance is not None else None,
+            reset_credits=reset_credits,
         )
 
 

@@ -254,3 +254,37 @@ async def test_codex_lb_guest_login(aiohttp_client) -> None:
         snapshot = await provider.async_validate()
 
     assert snapshot.accounts[0].remaining_5h == 33.0
+
+
+@pytest.mark.asyncio
+async def test_codex_lb_prefers_account_id_over_generic_id(aiohttp_client) -> None:
+    async def accounts(request: web.Request) -> web.Response:
+        return web.json_response(
+            {
+                "accounts": [
+                    {
+                        "id": "internal-uuid",
+                        "accountId": "acc_stable",
+                        "email": "stable@example.com",
+                        "status": "active",
+                        "usage": {"primaryRemainingPercent": 10.0},
+                    }
+                ]
+            }
+        )
+
+    async def session_state(request: web.Request) -> web.Response:
+        return web.json_response({"authenticated": True, "passwordRequired": False})
+
+    app = web.Application()
+    app.router.add_get("/api/accounts", accounts)
+    app.router.add_get("/api/dashboard-auth/session", session_state)
+    client = await aiohttp_client(app)
+
+    async with aiohttp.ClientSession() as session:
+        base = str(client.make_url("/")).rstrip("/")
+        provider = CodexLbProvider(session, base_url=base)
+        snapshot = await provider.async_validate()
+
+    assert len(snapshot.accounts) == 1
+    assert snapshot.accounts[0].account_id == "acc_stable"

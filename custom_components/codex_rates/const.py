@@ -62,5 +62,6 @@ ATTR_MAX = "max"
 ATTR_ACCOUNT_COUNT = "account_count"
 ATTR_ACTIVE_COUNT = "active_count"
 ATTR_RESET_CREDITS_EXPIRE = "expires_at"
+ATTR_RESETS_AT = "resets_at"
 
 POOL_DEVICE_ID = "pool"
