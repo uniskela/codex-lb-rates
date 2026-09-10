@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "a646a237d31a5914ebebd5cd16b0e4667f5fca4d",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "package-name": "codex-lb-rates",
+      "include-v-in-tag": true,
+      "include-component-in-tag": false,
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "custom_components/codex_rates/manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    }
+  }
+}
