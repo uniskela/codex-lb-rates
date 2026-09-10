@@ -25,13 +25,16 @@ Home Assistant integration for **Codex 5-hour** and **weekly** quota remaining�
 
 1. Choose **Codex-LB**.
 2. Enter your Codex-LB base URL (e.g. `http://192.168.1.10:2455`).
-3. Enter dashboard password (leave empty if dashboard auth is disabled).
-4. Optionally enter a TOTP secret if 2FA is enabled.
+3. Pick **Login mode**:
+   - **Admin** — dashboard password (± optional TOTP)
+   - **Guest** — read-only session when the server enables guest access (password only if the server requires one)
+4. Leave password empty if dashboard auth is disabled.
 
 You get:
 
-- Per-account sensors: 5h remaining %, weekly remaining %, reset times, status
-- Pool device: **All accounts 5h remaining %** and **All accounts weekly remaining %** (mean of active accounts; attributes include min/max/counts)
+- Per-account sensors: 5h / weekly / monthly remaining %, reset times, status
+- Optional rich sensors: plan, credits balance, **reset credits** (with expiry attribute), last refresh
+- Pool device: mean remaining % for 5h, weekly, and monthly across active accounts (attributes include min/max/counts; when window lengths differ, mean prefers the most common duration and exposes `by_minutes`)
 
 > Codex-LB **API keys cannot** read account quotas — the accounts API requires dashboard session auth.
 
@@ -51,7 +54,7 @@ Tokens are stored in the config entry (not YAML). Refresh tokens renew access au
 ## Options
 
 - **Poll interval** (default 60s, minimum 30s)
-- **Enable rich sensors** — plan type, credits balance, last refresh
+- **Enable rich sensors** — plan type, credits balance, reset credits, last refresh
 
 ## Lovelace example
 

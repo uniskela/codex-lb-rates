@@ -10,12 +10,13 @@
       },
       "codex_lb": {
         "title": "Codex-LB",
-        "description": "Connect to your Codex-LB dashboard. Leave password empty if dashboard auth is disabled.",
+        "description": "Connect to your Codex-LB dashboard. Use Guest for read-only access when the server allows it. Leave password empty if auth is disabled or guest needs no password.",
         "data": {
           "name": "Name",
           "base_url": "Base URL",
-          "password": "Dashboard password",
-          "totp_secret": "TOTP secret (optional)",
+          "lb_login": "Login mode",
+          "password": "Password (admin or guest)",
+          "totp_secret": "TOTP secret (admin only, optional)",
           "verify_ssl": "Verify SSL"
         }
       },
@@ -79,7 +80,7 @@
         "title": "Codex-LB Rates options",
         "data": {
           "poll_interval": "Poll interval (seconds)",
-          "rich_sensors": "Enable rich sensors (plan, credits, last refresh)"
+          "rich_sensors": "Enable rich sensors (plan, credits, reset credits, last refresh)"
         }
       }
     }
@@ -88,11 +89,14 @@
     "sensor": {
       "remaining_5h": { "name": "5h remaining" },
       "remaining_weekly": { "name": "Weekly remaining" },
+      "remaining_monthly": { "name": "Monthly remaining" },
       "reset_5h": { "name": "5h resets" },
       "reset_weekly": { "name": "Weekly resets" },
+      "reset_monthly": { "name": "Monthly resets" },
       "status": { "name": "Status" },
       "plan_type": { "name": "Plan" },
       "credits_balance": { "name": "Credits balance" },
+      "reset_credits": { "name": "Reset credits" },
       "last_refresh": { "name": "Last refresh" }
     }
   }

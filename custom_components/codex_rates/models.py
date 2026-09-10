@@ -17,14 +17,20 @@ class AccountQuota:
     status: str = "unknown"
     remaining_5h: float | None = None
     remaining_weekly: float | None = None
+    remaining_monthly: float | None = None
     used_5h: float | None = None
     used_weekly: float | None = None
+    used_monthly: float | None = None
     reset_5h: datetime | None = None
     reset_weekly: datetime | None = None
+    reset_monthly: datetime | None = None
     window_minutes_5h: int | None = None
     window_minutes_weekly: int | None = None
+    window_minutes_monthly: int | None = None
     plan_type: str | None = None
     credits_balance: str | None = None
+    reset_credits: int | None = None
+    reset_credits_expire_at: datetime | None = None
     last_refresh_at: datetime | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -42,6 +48,10 @@ class WindowAggregate:
     min: float | None
     max: float | None
     sample_count: int
+    # Most common window length among samples (minutes); None if unknown/mixed evenly.
+    window_minutes: int | None = None
+    # Mean remaining % keyed by window length when more than one duration is present.
+    by_minutes: dict[int, float] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -50,6 +60,7 @@ class PoolAggregate:
 
     remaining_5h: WindowAggregate
     remaining_weekly: WindowAggregate
+    remaining_monthly: WindowAggregate
     account_count: int
     active_count: int
 
@@ -62,25 +73,71 @@ class ProviderSnapshot:
     pool: PoolAggregate | None = None
 
 
-def _window_aggregate(values: list[float]) -> WindowAggregate:
+def _window_aggregate(
+    values: list[float],
+    minutes: list[int | None] | None = None,
+) -> WindowAggregate:
     if not values:
         return WindowAggregate(mean=None, min=None, max=None, sample_count=0)
+
+    by_minutes: dict[int, list[float]] = {}
+    if minutes is not None and len(minutes) == len(values):
+        for value, mins in zip(values, minutes, strict=True):
+            if mins is None:
+                continue
+            by_minutes.setdefault(mins, []).append(value)
+
+    duration_means = {
+        mins: round(sum(group) / len(group), 2) for mins, group in by_minutes.items()
+    }
+
+    # Prefer the dominant duration's mean when accounts disagree on window length
+    # (e.g. mixed plan windows in the same slot). Fall back to all samples.
+    modal_minutes: int | None = None
+    mean_values = values
+    if by_minutes:
+        modal_minutes = max(by_minutes.items(), key=lambda item: len(item[1]))[0]
+        if len(by_minutes) > 1:
+            mean_values = by_minutes[modal_minutes]
+
     return WindowAggregate(
-        mean=round(sum(values) / len(values), 2),
+        mean=round(sum(mean_values) / len(mean_values), 2),
         min=round(min(values), 2),
         max=round(max(values), 2),
         sample_count=len(values),
+        window_minutes=modal_minutes,
+        by_minutes=duration_means if len(duration_means) > 1 else {},
     )
 
 
 def compute_pool_aggregate(accounts: list[AccountQuota]) -> PoolAggregate:
     """Mean/min/max remaining % across active accounts only."""
     active = [a for a in accounts if (a.status or "").lower() == "active"]
-    five = [a.remaining_5h for a in active if a.remaining_5h is not None]
-    weekly = [a.remaining_weekly for a in active if a.remaining_weekly is not None]
+
+    def _pairs(
+        getter_remaining: Any, getter_minutes: Any
+    ) -> tuple[list[float], list[int | None]]:
+        vals: list[float] = []
+        mins: list[int | None] = []
+        for account in active:
+            remaining = getter_remaining(account)
+            if remaining is None:
+                continue
+            vals.append(remaining)
+            mins.append(getter_minutes(account))
+        return vals, mins
+
+    five, five_m = _pairs(lambda a: a.remaining_5h, lambda a: a.window_minutes_5h)
+    weekly, weekly_m = _pairs(
+        lambda a: a.remaining_weekly, lambda a: a.window_minutes_weekly
+    )
+    monthly, monthly_m = _pairs(
+        lambda a: a.remaining_monthly, lambda a: a.window_minutes_monthly
+    )
     return PoolAggregate(
-        remaining_5h=_window_aggregate(five),
-        remaining_weekly=_window_aggregate(weekly),
+        remaining_5h=_window_aggregate(five, five_m),
+        remaining_weekly=_window_aggregate(weekly, weekly_m),
+        remaining_monthly=_window_aggregate(monthly, monthly_m),
         account_count=len(accounts),
         active_count=len(active),
     )

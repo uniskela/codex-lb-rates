@@ -24,9 +24,11 @@ from .const import (
     ATTR_ACCOUNT_COUNT,
     ATTR_ACCOUNT_ID,
     ATTR_ACTIVE_COUNT,
+    ATTR_BY_MINUTES,
     ATTR_EMAIL,
     ATTR_MAX,
     ATTR_MIN,
+    ATTR_RESET_CREDITS_EXPIRE,
     ATTR_USED_PERCENT,
     ATTR_WINDOW_MINUTES,
     CONF_MODE,
@@ -69,6 +71,15 @@ ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
         attrs_fn=lambda a: _pct_attrs(a.used_weekly, a.window_minutes_weekly, a),
     ),
     CodexRatesSensorDescription(
+        key="remaining_monthly",
+        translation_key="remaining_monthly",
+        name="Monthly remaining",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda a: a.remaining_monthly,
+        attrs_fn=lambda a: _pct_attrs(a.used_monthly, a.window_minutes_monthly, a),
+    ),
+    CodexRatesSensorDescription(
         key="reset_5h",
         translation_key="reset_5h",
         name="5h resets",
@@ -81,6 +92,13 @@ ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
         name="Weekly resets",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda a: a.reset_weekly,
+    ),
+    CodexRatesSensorDescription(
+        key="reset_monthly",
+        translation_key="reset_monthly",
+        name="Monthly resets",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda a: a.reset_monthly,
     ),
     CodexRatesSensorDescription(
         key="status",
@@ -102,6 +120,24 @@ ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
         name="Credits balance",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda a: a.credits_balance,
+        rich=True,
+    ),
+    CodexRatesSensorDescription(
+        key="reset_credits",
+        translation_key="reset_credits",
+        name="Reset credits",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda a: a.reset_credits,
+        attrs_fn=lambda a: {
+            ATTR_ACCOUNT_ID: a.account_id,
+            ATTR_EMAIL: a.email,
+            **(
+                {ATTR_RESET_CREDITS_EXPIRE: a.reset_credits_expire_at.isoformat()}
+                if a.reset_credits_expire_at is not None
+                else {}
+            ),
+        },
         rich=True,
     ),
     CodexRatesSensorDescription(
@@ -145,6 +181,11 @@ async def async_setup_entry(
         entities.append(CodexPoolSensor(coordinator, entry, "remaining_5h", "All accounts 5h remaining"))
         entities.append(
             CodexPoolSensor(coordinator, entry, "remaining_weekly", "All accounts weekly remaining")
+        )
+        entities.append(
+            CodexPoolSensor(
+                coordinator, entry, "remaining_monthly", "All accounts monthly remaining"
+            )
         )
 
     async_add_entities(entities)
@@ -281,7 +322,9 @@ class CodexPoolSensor(CoordinatorEntity[CodexRatesCoordinator], SensorEntity):
             return None
         if self._key == "remaining_5h":
             return data.pool.remaining_5h
-        return data.pool.remaining_weekly
+        if self._key == "remaining_weekly":
+            return data.pool.remaining_weekly
+        return data.pool.remaining_monthly
 
     @property
     def native_value(self) -> float | None:
@@ -294,9 +337,16 @@ class CodexPoolSensor(CoordinatorEntity[CodexRatesCoordinator], SensorEntity):
         window = self._window()
         if data is None or data.pool is None or window is None:
             return None
-        return {
+        attrs: dict[str, Any] = {
             ATTR_MIN: window.min,
             ATTR_MAX: window.max,
             ATTR_ACCOUNT_COUNT: data.pool.account_count,
             ATTR_ACTIVE_COUNT: data.pool.active_count,
         }
+        if window.window_minutes is not None:
+            attrs[ATTR_WINDOW_MINUTES] = window.window_minutes
+        if window.by_minutes:
+            attrs[ATTR_BY_MINUTES] = {
+                str(minutes): mean for minutes, mean in window.by_minutes.items()
+            }
+        return attrs

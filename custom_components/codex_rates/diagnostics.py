@@ -43,6 +43,8 @@ async def async_get_config_entry_diagnostics(
                     "status": account.status,
                     "remaining_5h": account.remaining_5h,
                     "remaining_weekly": account.remaining_weekly,
+                    "remaining_monthly": account.remaining_monthly,
+                    "reset_credits": account.reset_credits,
                     "plan_type": account.plan_type,
                 }
             )
@@ -57,6 +59,7 @@ async def async_get_config_entry_diagnostics(
         else {
             "remaining_5h_mean": snapshot.pool.remaining_5h.mean,
             "remaining_weekly_mean": snapshot.pool.remaining_weekly.mean,
+            "remaining_monthly_mean": snapshot.pool.remaining_monthly.mean,
             "account_count": snapshot.pool.account_count,
             "active_count": snapshot.pool.active_count,
         },

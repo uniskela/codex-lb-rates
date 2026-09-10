@@ -28,6 +28,7 @@ from .const import (
     CONF_BASE_URL,
     CONF_EMAIL,
     CONF_ID_TOKEN,
+    CONF_LB_LOGIN,
     CONF_MODE,
     CONF_PASSWORD,
     CONF_POLL_INTERVAL,
@@ -35,10 +36,13 @@ from .const import (
     CONF_RICH_SENSORS,
     CONF_TOTP_SECRET,
     CONF_VERIFY_SSL,
+    DEFAULT_LB_LOGIN,
     DEFAULT_POLL_INTERVAL,
     DEFAULT_RICH_SENSORS,
     DEFAULT_VERIFY_SSL,
     DOMAIN,
+    LB_LOGIN_ADMIN,
+    LB_LOGIN_GUEST,
     MIN_POLL_INTERVAL,
     MODE_CHATGPT,
     MODE_CODEX_LB,
@@ -113,6 +117,7 @@ class CodexRatesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     password=user_input.get(CONF_PASSWORD),
                     totp_secret=user_input.get(CONF_TOTP_SECRET),
                     verify_ssl=user_input.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
+                    login_mode=user_input.get(CONF_LB_LOGIN, DEFAULT_LB_LOGIN),
                 )
                 try:
                     await provider.async_validate()
@@ -130,6 +135,7 @@ class CodexRatesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data = {
                         CONF_MODE: MODE_CODEX_LB,
                         CONF_BASE_URL: base_url,
+                        CONF_LB_LOGIN: user_input.get(CONF_LB_LOGIN, DEFAULT_LB_LOGIN),
                         CONF_PASSWORD: user_input.get(CONF_PASSWORD) or "",
                         CONF_TOTP_SECRET: user_input.get(CONF_TOTP_SECRET) or "",
                         CONF_VERIFY_SSL: user_input.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
@@ -149,6 +155,12 @@ class CodexRatesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 {
                     vol.Optional(CONF_NAME): str,
                     vol.Required(CONF_BASE_URL, default="http://127.0.0.1:2455"): str,
+                    vol.Required(CONF_LB_LOGIN, default=DEFAULT_LB_LOGIN): vol.In(
+                        {
+                            LB_LOGIN_ADMIN: "Admin (password ± TOTP)",
+                            LB_LOGIN_GUEST: "Guest (read-only)",
+                        }
+                    ),
                     vol.Optional(CONF_PASSWORD, default=""): selector.TextSelector(
                         selector.TextSelectorConfig(
                             type=selector.TextSelectorType.PASSWORD

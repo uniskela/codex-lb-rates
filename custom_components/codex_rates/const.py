@@ -8,6 +8,7 @@ CONF_MODE = "mode"
 CONF_BASE_URL = "base_url"
 CONF_PASSWORD = "password"
 CONF_TOTP_SECRET = "totp_secret"
+CONF_LB_LOGIN = "lb_login"
 CONF_AUTH_METHOD = "auth_method"
 CONF_AUTH_JSON_PATH = "auth_json_path"
 CONF_ACCESS_TOKEN = "access_token"
@@ -21,6 +22,10 @@ CONF_VERIFY_SSL = "verify_ssl"
 
 MODE_CODEX_LB = "codex_lb"
 MODE_CHATGPT = "chatgpt"
+
+LB_LOGIN_ADMIN = "admin"
+LB_LOGIN_GUEST = "guest"
+DEFAULT_LB_LOGIN = LB_LOGIN_ADMIN
 
 AUTH_METHOD_DEVICE_CODE = "device_code"
 AUTH_METHOD_PASTE_CALLBACK = "paste_callback"
@@ -49,11 +54,13 @@ LB_SESSION_COOKIES = (
 
 ATTR_USED_PERCENT = "used_percent"
 ATTR_WINDOW_MINUTES = "window_minutes"
+ATTR_BY_MINUTES = "by_minutes"
 ATTR_ACCOUNT_ID = "account_id"
 ATTR_EMAIL = "email"
 ATTR_MIN = "min"
 ATTR_MAX = "max"
 ATTR_ACCOUNT_COUNT = "account_count"
 ATTR_ACTIVE_COUNT = "active_count"
+ATTR_RESET_CREDITS_EXPIRE = "expires_at"
 
 POOL_DEVICE_ID = "pool"

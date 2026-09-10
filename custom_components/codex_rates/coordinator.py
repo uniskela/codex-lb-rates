@@ -22,12 +22,14 @@ from .const import (
     CONF_BASE_URL,
     CONF_EMAIL,
     CONF_ID_TOKEN,
+    CONF_LB_LOGIN,
     CONF_MODE,
     CONF_PASSWORD,
     CONF_POLL_INTERVAL,
     CONF_REFRESH_TOKEN,
     CONF_TOTP_SECRET,
     CONF_VERIFY_SSL,
+    DEFAULT_LB_LOGIN,
     DEFAULT_POLL_INTERVAL,
     DEFAULT_VERIFY_SSL,
     DOMAIN,
@@ -84,6 +86,7 @@ class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
                 password=self.entry.data.get(CONF_PASSWORD),
                 totp_secret=self.entry.data.get(CONF_TOTP_SECRET),
                 verify_ssl=self.entry.data.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
+                login_mode=self.entry.data.get(CONF_LB_LOGIN, DEFAULT_LB_LOGIN),
             )
 
         async def _persist(tokens: dict[str, str]) -> None:

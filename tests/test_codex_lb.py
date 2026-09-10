@@ -146,14 +146,28 @@ async def test_codex_lb_maps_camel_case_accounts(aiohttp_client) -> None:
                         "usage": {
                             "primaryRemainingPercent": 42.5,
                             "secondaryRemainingPercent": 88.0,
+                            "monthlyRemainingPercent": 55.0,
                         },
                         "resetAtPrimary": "2026-03-04T00:00:00Z",
                         "resetAtSecondary": "2026-03-10T00:00:00Z",
+                        "resetAtMonthly": "2026-04-01T00:00:00Z",
                         "windowMinutesPrimary": 300,
                         "windowMinutesSecondary": 10080,
+                        "windowMinutesMonthly": 43200,
                         "remainingCreditsPrimary": 425.0,
+                        "availableResetCredits": 2,
+                        "resetCreditNearestExpiresAt": "2026-03-20T12:00:00Z",
                         "lastRefreshAt": "2026-03-03T18:30:00Z",
-                    }
+                    },
+                    {
+                        "accountId": "skip_me",
+                        "email": "other@example.com",
+                        "displayName": "Other",
+                        "planType": "pro",
+                        "provider": "anthropic",
+                        "status": "active",
+                        "usage": {"primaryRemainingPercent": 99.0},
+                    },
                 ]
             }
         )
@@ -171,6 +185,7 @@ async def test_codex_lb_maps_camel_case_accounts(aiohttp_client) -> None:
         provider = CodexLbProvider(session, base_url=base)
         snapshot = await provider.async_validate()
 
+    assert len(snapshot.accounts) == 1
     account = snapshot.accounts[0]
     assert account.account_id == "acc_camel"
     assert account.email == "camel@example.com"
@@ -178,6 +193,64 @@ async def test_codex_lb_maps_camel_case_accounts(aiohttp_client) -> None:
     assert account.plan_type == "plus"
     assert account.remaining_5h == 42.5
     assert account.remaining_weekly == 88.0
+    assert account.remaining_monthly == 55.0
+    assert account.reset_credits == 2
+    assert account.reset_credits_expire_at is not None
     assert account.credits_balance == "425.0"
     assert snapshot.pool is not None
     assert snapshot.pool.remaining_5h.mean == 42.5
+    assert snapshot.pool.remaining_monthly.mean == 55.0
+
+
+@pytest.mark.asyncio
+async def test_codex_lb_guest_login(aiohttp_client) -> None:
+    state = {"authed": False}
+
+    async def session_get(request: web.Request) -> web.Response:
+        return web.json_response(
+            {
+                "authenticated": state["authed"],
+                "guestAccessEnabled": True,
+                "guestPasswordRequired": True,
+            }
+        )
+
+    async def guest_login(request: web.Request) -> web.Response:
+        body = await request.json()
+        assert body["password"] == "guest-pass"
+        state["authed"] = True
+        resp = web.json_response({"authenticated": True, "role": "guest"})
+        resp.set_cookie("codex_lb_dashboard_session", "guest-cookie")
+        return resp
+
+    async def accounts(request: web.Request) -> web.Response:
+        if "guest-cookie" not in request.headers.get("Cookie", ""):
+            return web.json_response({"error": "auth"}, status=401)
+        return web.json_response(
+            {
+                "accounts": [
+                    {
+                        "accountId": "g1",
+                        "status": "active",
+                        "usage": {"primaryRemainingPercent": 33},
+                    }
+                ]
+            }
+        )
+
+    app = web.Application()
+    app.router.add_get("/api/dashboard-auth/session", session_get)
+    app.router.add_post("/api/dashboard-auth/guest/login", guest_login)
+    app.router.add_get("/api/accounts", accounts)
+    client = await aiohttp_client(app)
+
+    async with aiohttp.ClientSession() as session:
+        provider = CodexLbProvider(
+            session,
+            base_url=str(client.make_url("/")).rstrip("/"),
+            password="guest-pass",
+            login_mode="guest",
+        )
+        snapshot = await provider.async_validate()
+
+    assert snapshot.accounts[0].remaining_5h == 33.0
