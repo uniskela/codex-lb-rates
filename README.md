@@ -4,7 +4,7 @@ Home Assistant integration for **Codex 5-hour** and **weekly** quota remainingâ€
 
 [![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![Validate](https://github.com/uniskela/codex-lb-rates/actions/workflows/validate.yml/badge.svg)](https://github.com/uniskela/codex-lb-rates/actions/workflows/validate.yml)
-[![CodeQL](https://github.com/uniskela/codex-lb-rates/actions/workflows/codeql.yml/badge.svg)](https://github.com/uniskela/codex-lb-rates/actions/workflows/codeql.yml)
+[![CodeQL](https://img.shields.io/badge/CodeQL-enabled-brightgreen)](https://github.com/uniskela/codex-lb-rates/security/code-scanning)
 [![License](https://img.shields.io/github/license/uniskela/codex-lb-rates)](LICENSE)
 
 ## Features
