@@ -181,32 +181,53 @@ class CodexLbProvider:
 
     @staticmethod
     def _map_account(item: dict[str, Any]) -> AccountQuota:
-        usage = item.get("usage") if isinstance(item.get("usage"), dict) else {}
-        primary_remaining = _as_float(
-            usage.get("primary_remaining_percent", item.get("primary_remaining_percent"))
-        )
-        secondary_remaining = _as_float(
-            usage.get("secondary_remaining_percent", item.get("secondary_remaining_percent"))
-        )
-        # Some deployments expose used_percent instead
-        if primary_remaining is None and usage.get("primary_used_percent") is not None:
-            used = _as_float(usage.get("primary_used_percent"))
-            primary_remaining = None if used is None else round(100.0 - used, 2)
-        if secondary_remaining is None and usage.get("secondary_used_percent") is not None:
-            used = _as_float(usage.get("secondary_used_percent"))
-            secondary_remaining = None if used is None else round(100.0 - used, 2)
+        # Codex-LB DashboardModel serializes JSON as camelCase; docs/examples use snake_case.
+        usage_raw = _first(item, "usage")
+        usage = usage_raw if isinstance(usage_raw, dict) else {}
 
-        status = str(item.get("status") or "unknown").lower()
-        account_id = str(item.get("account_id") or item.get("id") or "")
+        primary_remaining = _as_float(
+            _first(usage, "primary_remaining_percent", "primaryRemainingPercent")
+        )
+        if primary_remaining is None:
+            primary_remaining = _as_float(
+                _first(item, "primary_remaining_percent", "primaryRemainingPercent")
+            )
+
+        secondary_remaining = _as_float(
+            _first(usage, "secondary_remaining_percent", "secondaryRemainingPercent")
+        )
+        if secondary_remaining is None:
+            secondary_remaining = _as_float(
+                _first(item, "secondary_remaining_percent", "secondaryRemainingPercent")
+            )
+
+        # Some deployments expose used_percent instead
+        if primary_remaining is None:
+            used = _as_float(_first(usage, "primary_used_percent", "primaryUsedPercent"))
+            if used is not None:
+                primary_remaining = round(100.0 - used, 2)
+        if secondary_remaining is None:
+            used = _as_float(
+                _first(usage, "secondary_used_percent", "secondaryUsedPercent")
+            )
+            if used is not None:
+                secondary_remaining = round(100.0 - used, 2)
+
+        status = str(_first(item, "status") or "unknown").lower()
+        account_id = str(
+            _first(item, "account_id", "accountId", "id") or ""
+        )
         if not account_id:
-            account_id = str(item.get("email") or "unknown")
+            account_id = str(_first(item, "email") or "unknown")
+
+        email = _first(item, "email")
+        display_name = _first(item, "display_name", "displayName", "alias")
+        plan_type = _first(item, "plan_type", "planType")
 
         return AccountQuota(
             account_id=account_id,
-            email=item.get("email") if isinstance(item.get("email"), str) else None,
-            display_name=item.get("display_name")
-            if isinstance(item.get("display_name"), str)
-            else None,
+            email=email if isinstance(email, str) else None,
+            display_name=display_name if isinstance(display_name, str) else None,
             status=status,
             remaining_5h=primary_remaining,
             remaining_weekly=secondary_remaining,
@@ -214,14 +235,34 @@ class CodexLbProvider:
             used_weekly=None
             if secondary_remaining is None
             else round(100.0 - secondary_remaining, 2),
-            reset_5h=parse_iso_datetime(item.get("reset_at_primary")),
-            reset_weekly=parse_iso_datetime(item.get("reset_at_secondary")),
-            window_minutes_5h=_as_int(item.get("window_minutes_primary")),
-            window_minutes_weekly=_as_int(item.get("window_minutes_secondary")),
-            plan_type=item.get("plan_type") if isinstance(item.get("plan_type"), str) else None,
+            reset_5h=parse_iso_datetime(
+                _first(item, "reset_at_primary", "resetAtPrimary")
+            ),
+            reset_weekly=parse_iso_datetime(
+                _first(item, "reset_at_secondary", "resetAtSecondary")
+            ),
+            window_minutes_5h=_as_int(
+                _first(item, "window_minutes_primary", "windowMinutesPrimary")
+            ),
+            window_minutes_weekly=_as_int(
+                _first(item, "window_minutes_secondary", "windowMinutesSecondary")
+            ),
+            plan_type=plan_type if isinstance(plan_type, str) else None,
             credits_balance=_credits_str(item),
-            last_refresh_at=parse_iso_datetime(item.get("last_refresh_at")),
+            last_refresh_at=parse_iso_datetime(
+                _first(item, "last_refresh_at", "lastRefreshAt")
+            ),
         )
+
+
+def _first(data: dict[str, Any] | None, *keys: str) -> Any:
+    """Return the first present key (including explicit nulls)."""
+    if not isinstance(data, dict):
+        return None
+    for key in keys:
+        if key in data:
+            return data[key]
+    return None
 
 
 def _as_float(value: Any) -> float | None:
@@ -243,7 +284,13 @@ def _as_int(value: Any) -> int | None:
 
 
 def _credits_str(item: dict[str, Any]) -> str | None:
-    for key in ("remaining_credits_primary", "credits_balance", "balance"):
+    for key in (
+        "remaining_credits_primary",
+        "remainingCreditsPrimary",
+        "credits_balance",
+        "creditsBalance",
+        "balance",
+    ):
         if key in item and item[key] is not None:
             return str(item[key])
     return None
