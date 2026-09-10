@@ -1,14 +1,14 @@
 {
   "domain": "codex_rates",
-  "name": "Codex Rates",
+  "name": "Codex-LB Rates",
   "after_dependencies": [],
   "codeowners": ["@uniskela"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/uniskela/codex-rates",
+  "documentation": "https://github.com/uniskela/codex-lb-rates",
   "integration_type": "service",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/uniskela/codex-rates/issues",
+  "issue_tracker": "https://github.com/uniskela/codex-lb-rates/issues",
   "requirements": ["pyotp>=2.9.0"],
   "version": "0.1.0"
 }

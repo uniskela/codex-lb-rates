@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Codex Rates",
-        "description": "Choose how to read Codex quota information.",
+        "title": "Codex-LB Rates",
+        "description": "Monitor Codex quotas from a Codex-LB pool or a ChatGPT / Codex CLI account.",
         "data": {
           "mode": "Mode"
         }
@@ -76,7 +76,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Codex Rates options",
+        "title": "Codex-LB Rates options",
         "data": {
           "poll_interval": "Poll interval (seconds)",
           "rich_sensors": "Enable rich sensors (plan, credits, last refresh)"

@@ -2,7 +2,7 @@
 
 ## Reporting
 
-If you find a security issue in Codex Rates, open a **private** GitHub security advisory on [uniskela/codex-rates](https://github.com/uniskela/codex-rates) or email the maintainer. Do not file a public issue with live tokens, passwords, or `auth.json` contents.
+If you find a security issue in Codex-LB Rates, open a **private** GitHub security advisory on [uniskela/codex-lb-rates](https://github.com/uniskela/codex-lb-rates) or email the maintainer. Do not file a public issue with live tokens, passwords, or `auth.json` contents.
 
 ## What this integration stores
 

@@ -1,17 +1,25 @@
-# Codex Rates (Home Assistant)
+# Codex-LB Rates
 
-Home Assistant custom integration that shows **Codex 5-hour** and **weekly** quota remaining on your dashboard.
+Home Assistant integration for **Codex 5-hour** and **weekly** quota remaining—built first for [Codex-LB](https://github.com/soju06/codex-lb) account pools, with a ChatGPT / Codex CLI mode for single accounts.
 
-Supports:
+[![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![Validate](https://github.com/uniskela/codex-lb-rates/actions/workflows/validate.yml/badge.svg)](https://github.com/uniskela/codex-lb-rates/actions/workflows/validate.yml)
+[![License](https://img.shields.io/github/license/uniskela/codex-lb-rates)](LICENSE)
 
-- **[Codex-LB](https://github.com/soju06/codex-lb)** — all pooled accounts + pool-wide average gauges
-- **ChatGPT / Codex CLI** — OAuth (device code or paste callback), `auth.json`, or advanced tokens
+## Features
+
+- **Codex-LB pool monitoring** — every pooled account as its own device, plus pool gauges (mean remaining % for 5h and weekly across active accounts)
+- **Per-account sensors** — remaining %, reset times, status (rich sensors optional)
+- **ChatGPT / Codex CLI** — device-code OAuth, browser paste-callback, `auth.json`, or advanced tokens
+- Secrets stay in the config entry (password inputs, redacted diagnostics)
 
 ## Install (HACS)
 
-1. Add [`https://github.com/uniskela/codex-rates`](https://github.com/uniskela/codex-rates) as a **custom repository** (Integration) in HACS, or copy `custom_components/codex_rates` into your HA `config/custom_components/` folder.
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=uniskela&repository=codex-lb-rates&category=integration)
+
+1. Click the badge above, **or** in HACS add custom repository `https://github.com/uniskela/codex-lb-rates` (type: Integration), **or** copy `custom_components/codex_rates` into your HA `config/custom_components/` folder.
 2. Restart Home Assistant.
-3. **Settings → Devices & services → Add integration → Codex Rates**.
+3. **Settings → Devices & services → Add integration → Codex-LB Rates**.
 
 ## Codex-LB setup
 
@@ -23,22 +31,22 @@ Supports:
 You get:
 
 - Per-account sensors: 5h remaining %, weekly remaining %, reset times, status
-- Pool device: **All accounts 5h remaining %** and **All accounts weekly remaining %** (mean of active accounts)
+- Pool device: **All accounts 5h remaining %** and **All accounts weekly remaining %** (mean of active accounts; attributes include min/max/counts)
 
 > Codex-LB **API keys cannot** read account quotas — the accounts API requires dashboard session auth.
 
 ## ChatGPT / Codex CLI setup
 
-Pick one auth method:
+Use this when you are not running Codex-LB and still want the same 5h / weekly sensors for one ChatGPT account.
 
 | Method | Best for |
 |--------|----------|
 | **Device code** | HA in Docker / remote (recommended) |
-| **Browser + paste callback** | Same OAuth as Codex-LB; paste the full `localhost:1455` callback URL |
+| **Browser + paste callback** | Paste the full `localhost:1455` callback URL after sign-in |
 | **auth.json** | Bind-mount `~/.codex/auth.json` into HA and point at the path |
 | **Paste tokens** | Advanced / last resort |
 
-Tokens are stored in the config entry (not YAML). Refresh tokens are used automatically when access expires.
+Tokens are stored in the config entry (not YAML). Refresh tokens renew access automatically when possible. Add the integration again for another account.
 
 ## Options
 
@@ -50,7 +58,7 @@ Tokens are stored in the config entry (not YAML). Refresh tokens are used automa
 ```yaml
 type: gauge
 entity: sensor.codex_lb_pool_all_accounts_5h_remaining
-name: Codex pool 5h
+name: Codex-LB pool 5h
 min: 0
 max: 100
 severity: 30
@@ -59,6 +67,7 @@ severity: 70
 
 ```yaml
 type: entities
+title: Codex-LB accounts
 entities:
   - entity: sensor.a_example_com_5h_remaining
   - entity: sensor.a_example_com_weekly_remaining

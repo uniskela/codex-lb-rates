@@ -220,7 +220,7 @@ class CodexAccountSensor(CoordinatorEntity[CodexRatesCoordinator], SensorEntity)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry.entry_id}_{account_id}")},
             name=name,
-            manufacturer="Codex Rates",
+            manufacturer="Codex-LB Rates",
             model="ChatGPT / Codex account",
         )
 
@@ -271,7 +271,7 @@ class CodexPoolSensor(CoordinatorEntity[CodexRatesCoordinator], SensorEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry.entry_id}_{POOL_DEVICE_ID}")},
             name="Codex-LB pool",
-            manufacturer="Codex Rates",
+            manufacturer="Codex-LB Rates",
             model="Codex-LB",
         )
 
