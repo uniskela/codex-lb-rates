@@ -82,11 +82,11 @@ entities:
 
 ## Quota warnings
 
-Ship a Home Assistant automation blueprint that warns once when a **remaining %** sensor drops to or below a threshold (default **20%** left), then rearms after remaining recovers by a margin (default **5** pp). Uses a persistent `input_boolean` helper so you are not spammed while quota stays low.
+Ship a Home Assistant automation blueprint that warns once when a **remaining %** sensor drops to or below a threshold (default **20%** left), then rearms after remaining recovers by a margin (default **5** pp). Uses a persistent `input_boolean` helper so you are not spammed while quota stays low. Can notify the HA UI (persistent notification) and/or a Companion phone without a custom action.
 
 1. Create a **Toggle** helper (**Settings → Devices & services → Helpers**) with no forced initial value — one helper per automation.
 2. Copy [`blueprints/automation/codex_rates/quota_warning.yaml`](blueprints/automation/codex_rates/quota_warning.yaml) into `config/blueprints/automation/codex_rates/` on your HA instance (or import the raw file URL from the release you installed).
-3. **Create automation → Use blueprint** and pick a remaining-% sensor (pool or account), threshold, helper, and notify/script action.
+3. **Create automation → Use blueprint** and pick a remaining-% sensor (pool or account), threshold, helper, and optional phone device (extra actions still available).
 
 Works for pool gauges and per-account 5h / weekly remaining sensors. Sensors are **remaining**, not used — threshold 20 means warn when ≤20% is left.
 
