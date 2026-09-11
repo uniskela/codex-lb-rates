@@ -80,15 +80,15 @@ entities:
 
 (Entity IDs depend on account names; check **Developer tools → States**.)
 
-## Quota warnings
+## Quota alerts
 
-Ship a Home Assistant automation blueprint that warns once when a **remaining %** sensor drops to or below a threshold (default **20%** left), then rearms after remaining recovers by a margin (default **5** pp). Uses a persistent `input_boolean` helper so you are not spammed while quota stays low. Can notify the HA UI (persistent notification) and/or a Companion phone without a custom action.
+Ship a Home Assistant automation blueprint that alerts on **low**, **exceeded**, and **refreshed** remaining-% levels across one or more pool/account sensors. Uses a Text helper to remember which alerts already fired so you are not spammed. Can notify the HA UI and/or Companion phones without a custom action.
 
-1. Create a **Toggle** helper (**Settings → Devices & services → Helpers**) with no forced initial value — one helper per automation.
+1. Create a **Text** helper (**Settings → Devices & services → Helpers**) with max length **255** and empty initial value — one helper per automation.
 2. Copy [`blueprints/automation/codex_rates/quota_warning.yaml`](blueprints/automation/codex_rates/quota_warning.yaml) into `config/blueprints/automation/codex_rates/` on your HA instance (or import the raw file URL from the release you installed).
-3. **Create automation → Use blueprint** and pick a remaining-% sensor, the required Toggle helper, threshold, and optional phone devices (extra actions still available).
+3. **Create automation → Use blueprint** and pick remaining-% sensors, the Text helper, alert levels, and optional phones.
 
-Works for pool gauges and per-account 5h / weekly remaining sensors. Sensors are **remaining**, not used — threshold 20 means warn when ≤20% is left.
+Works for pool gauges and per-account 5h / weekly remaining sensors. Sensors are **remaining**, not used — low threshold 20 means warn when ≤20% is left (and above the exceeded band).
 
 More detail: [docs/automations.md](docs/automations.md).
 

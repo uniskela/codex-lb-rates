@@ -1,234 +1,602 @@
 blueprint:
-  name: Codex-LB Rates quota warning with hysteresis
+  name: Codex-LB Rates quota alerts
   description: >-
-    Warn once when a remaining-percentage sensor drops to or below the threshold,
-    then rearm after remaining rises by the recovery margin. Creates an optional
-    Home Assistant persistent notification and/or Companion phone notification.
-    Create a dedicated input_boolean helper without a forced initial value so its
-    state survives restarts. Each automation needs its own helper. Unknown or
-    non-numeric readings leave the helper unchanged. Failed actions may retry;
-    delivery is not guaranteed exactly once.
+    Alert on remaining-% sensors for low quota, quota exceeded, and quota
+    refreshed. Select one or more sensors (pool and/or accounts). Uses one
+    Text helper to remember which alerts already fired so you are not spammed.
   domain: automation
   homeassistant:
     min_version: "2024.8.0"
   input:
-    remaining_sensor:
-      name: Remaining percentage sensor
-      description: >-
-        Select a Codex-LB Rates remaining-% sensor (account or pool), not a
-        consumed-usage value. Unit must be %.
-      selector:
-        entity:
-          filter:
-            domain: sensor
-            unit_of_measurement: "%"
-    warning_state:
-      name: Persistent warning helper (required)
-      description: >-
-        **Required.** Create a Toggle helper first
-        (Settings → Devices & services → Helpers), leave its initial value
-        unset, then select it here. Use one helper per automation.
-      selector:
-        entity:
-          filter:
-            domain: input_boolean
-    warning_threshold:
-      name: Warning threshold (remaining %)
-      description: Warn when remaining is at or below this value.
-      default: 20
-      selector:
-        number:
-          min: 0
-          max: 100
-          unit_of_measurement: "%"
-          mode: box
-    hysteresis:
-      name: Recovery margin
-      description: >-
-        Percentage points above the threshold required to rearm the warning
-        (remaining must reach threshold + margin).
-      default: 5
-      selector:
-        number:
-          min: 0
-          max: 100
-          unit_of_measurement: pp
-          mode: box
+    sensors_section:
+      name: Sensors and helper
+      icon: mdi:gauge
+      input:
+        remaining_sensors:
+          name: Remaining percentage sensors
+          description: >-
+            One or more Codex-LB Rates remaining-% sensors (pool and/or
+            accounts). Unit must be %.
+          selector:
+            entity:
+              multiple: true
+              filter:
+                domain: sensor
+                unit_of_measurement: "%"
+        alert_state:
+          name: Alert state helper (required)
+          description: >-
+            **Required.** Create a **Text** helper first (Settings → Devices &
+            services → Helpers), set **Maximum length** to **255**, leave the
+            initial value empty, then select it here. One helper per
+            automation. Replaces the old Toggle helper.
+          selector:
+            entity:
+              filter:
+                domain: input_text
+    levels_section:
+      name: Alert levels
+      icon: mdi:alert-decagram
+      collapsed: false
+      input:
+        enable_low:
+          name: Enable low-quota alert
+          description: Notify when remaining drops into the low band (above exceeded).
+          default: true
+          selector:
+            boolean:
+        low_threshold:
+          name: Low threshold (remaining %)
+          default: 20
+          selector:
+            number:
+              min: 0
+              max: 100
+              unit_of_measurement: "%"
+              mode: box
+        low_hysteresis:
+          name: Low recovery margin
+          description: Rearm low alert when remaining ≥ low threshold + margin.
+          default: 5
+          selector:
+            number:
+              min: 0
+              max: 100
+              unit_of_measurement: pp
+              mode: box
+        enable_exceeded:
+          name: Enable quota-exceeded alert
+          description: Notify when remaining is at or below the exceeded threshold.
+          default: true
+          selector:
+            boolean:
+        exceed_threshold:
+          name: Exceeded threshold (remaining %)
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 100
+              unit_of_measurement: "%"
+              mode: box
+        exceed_hysteresis:
+          name: Exceeded recovery margin
+          description: Rearm exceeded alert when remaining > exceeded threshold + margin.
+          default: 1
+          selector:
+            number:
+              min: 0
+              max: 100
+              unit_of_measurement: pp
+              mode: box
+        enable_refreshed:
+          name: Enable quota-refreshed alert
+          description: >-
+            Notify when remaining rises to the refresh threshold after a prior
+            low or exceeded alert for that sensor (avoids notifying on first
+            install while already full).
+          default: true
+          selector:
+            boolean:
+        refresh_threshold:
+          name: Refreshed threshold (remaining %)
+          default: 100
+          selector:
+            number:
+              min: 0
+              max: 100
+              unit_of_measurement: "%"
+              mode: box
+        refresh_rearm:
+          name: Refreshed rearm below
+          description: Rearm refreshed alert when remaining drops to or below this value.
+          default: 90
+          selector:
+            number:
+              min: 0
+              max: 100
+              unit_of_measurement: "%"
+              mode: box
     notification_section:
       name: Notifications
       icon: mdi:bell-badge
       description: >-
-        Built-in HA UI and Companion phone alerts. Leave phones empty to skip
-        mobile notifications.
+        HA UI and Companion phone alerts. Leave phones empty to skip mobile
+        notifications. Titles/messages support templates using remaining_entity,
+        remaining, friendly_name, and event.
       collapsed: true
       input:
         enable_persistent:
           name: Home Assistant persistent notification
-          description: >-
-            Show a dismissible notification in the Home Assistant UI when the
-            warning fires. Dismissed automatically when the warning rearms.
           default: true
           selector:
             boolean:
         notify_devices:
           name: Phones to notify
           description: >-
-            Optional. Companion app devices (`mobile_app`). Leave empty to skip
-            phone notifications. Cleared automatically when the warning rearms.
-            Uses each device's `notify.mobile_app_*` service derived from the
-            Companion device name (not a Home Assistant UI rename).
+            Optional Companion (`mobile_app`) devices. Uses each device's
+            `notify.mobile_app_*` service from the Companion device name.
           default: []
           selector:
             device:
               multiple: true
               filter:
                 - integration: mobile_app
-        notification_title:
-          name: Notification title
-          description: Title used for persistent and phone notifications.
+        title_low:
+          name: Low alert title
           default: "⚠️ Codex-LB Rates quota low"
           selector:
             text:
-        notification_subtitle:
-          name: Notification subtitle
-          description: >-
-            Secondary line on Companion notifications (iOS subtitle / Android
-            subject). Leave blank to omit.
-          default: "Quota remaining is below your threshold"
+        subtitle_low:
+          name: Low alert subtitle
+          default: "Remaining quota is running low"
           selector:
             text:
-        notification_message:
-          name: Notification message
-          description: >-
-            Body for persistent and phone notifications. Templates may use
-            `remaining_entity`, `remaining`, and `threshold`. Companion apps
-            also get color, icon, channel, and subtitle styling.
+        message_low:
+          name: Low alert message
           default: |
-            {{ state_attr(remaining_entity, 'friendly_name') or remaining_entity }} is at {{ remaining }}% remaining.
+            {{ friendly_name }} is at {{ remaining }}% remaining.
 
-            Threshold: {{ threshold }}%
+            Threshold: {{ low_threshold }}%
           selector:
             text:
               multiline: true
-        warning_action:
-          name: Additional warning actions
-          description: >-
-            Optional extra actions after built-in notifications (TTS, scripts,
-            etc.). Leave empty if persistent and/or phone notify is enough.
+        title_exceeded:
+          name: Exceeded alert title
+          default: "🚨 Codex-LB Rates quota exceeded"
+          selector:
+            text:
+        subtitle_exceeded:
+          name: Exceeded alert subtitle
+          default: "No remaining quota left"
+          selector:
+            text:
+        message_exceeded:
+          name: Exceeded alert message
+          default: |
+            {{ friendly_name }} is at {{ remaining }}% remaining.
+
+            Quota exceeded (threshold {{ exceed_threshold }}%).
+          selector:
+            text:
+              multiline: true
+        title_refreshed:
+          name: Refreshed alert title
+          default: "✅ Codex-LB Rates quota refreshed"
+          selector:
+            text:
+        subtitle_refreshed:
+          name: Refreshed alert subtitle
+          default: "Quota has been restored"
+          selector:
+            text:
+        message_refreshed:
+          name: Refreshed alert message
+          default: |
+            {{ friendly_name }} is at {{ remaining }}% remaining.
+
+            Quota refreshed (threshold {{ refresh_threshold }}%).
+          selector:
+            text:
+              multiline: true
+        extra_actions:
+          name: Additional actions after any alert
+          description: Optional TTS, scripts, etc. Runs after an alert is armed.
           default: []
           selector:
             action: {}
 
 triggers:
   - trigger: state
-    entity_id: !input remaining_sensor
+    entity_id: !input remaining_sensors
   - trigger: homeassistant
     event: start
   - trigger: time_pattern
     minutes: "/5"
 
 variables:
-  remaining_entity: !input remaining_sensor
-  threshold: !input warning_threshold
-  recovery_margin: !input hysteresis
-  warning_helper: !input warning_state
+  state_helper: !input alert_state
+  enable_low: !input enable_low
+  low_threshold: !input low_threshold
+  low_hysteresis: !input low_hysteresis
+  enable_exceeded: !input enable_exceeded
+  exceed_threshold: !input exceed_threshold
+  exceed_hysteresis: !input exceed_hysteresis
+  enable_refreshed: !input enable_refreshed
+  refresh_threshold: !input refresh_threshold
+  refresh_rearm: !input refresh_rearm
   enable_persistent: !input enable_persistent
   notify_devices: !input notify_devices
-  notify_subtitle: !input notification_subtitle
-  remaining: "{{ states(remaining_entity) | float(-1) }}"
-  recover_at: "{{ [100, threshold | float + recovery_margin | float] | min }}"
-  notification_id: "codex_rates_{{ warning_helper | slugify }}"
-  notification_tag: "codex_rates_{{ warning_helper | slugify }}"
-  # Margin 0: rearm only when remaining is strictly above the threshold so
-  # HA start / 5m ticks do not oscillate warn ↔ rearm at exactly the threshold.
-  should_recover: >-
-    {{ is_state(warning_helper, 'on') and (
-         (recovery_margin | float == 0 and remaining | float(-1) > threshold | float)
-         or (recovery_margin | float > 0 and remaining | float(-1) >= recover_at | float)
-       ) }}
-  should_warn: >-
-    {{ is_state(warning_helper, 'off')
-       and remaining | float(-1) <= threshold | float }}
+  sensors: !input remaining_sensors
 
 actions:
   - condition: template
     value_template: >-
-      {{ is_number(states(remaining_entity))
-         and 0 <= remaining <= 100
-         and state_attr(remaining_entity, 'unit_of_measurement') == '%'
-         and states(warning_helper) in ['on', 'off'] }}
-  - choose:
-      - conditions: "{{ should_recover }}"
-        sequence:
-          - if:
-              - condition: template
-                value_template: "{{ enable_persistent }}"
-            then:
-              - action: persistent_notification.dismiss
-                data:
-                  notification_id: "{{ notification_id }}"
-          - repeat:
-              for_each: !input notify_devices
-              sequence:
-                - variables:
-                    notify_target: >-
-                      {{
-                        "notify.mobile_app_" ~ (
-                          device_attr(repeat.item, "name") or ""
-                        ) | slugify
-                      }}
+      {{ states(state_helper) not in ['unknown', 'unavailable']
+         and sensors | count > 0 }}
+  - repeat:
+      for_each: !input remaining_sensors
+      sequence:
+        - variables:
+            remaining_entity: "{{ repeat.item }}"
+            remaining: "{{ states(repeat.item) | float(-1) }}"
+            friendly_name: >-
+              {{ state_attr(repeat.item, 'friendly_name') or repeat.item }}
+            state_raw: "{{ states(state_helper) }}"
+            token_low: "{{ repeat.item }}::low"
+            token_exceeded: "{{ repeat.item }}::exceeded"
+            token_refreshed: "{{ repeat.item }}::refreshed"
+            armed_low: "{{ token_low in state_raw.split() }}"
+            armed_exceeded: "{{ token_exceeded in state_raw.split() }}"
+            armed_refreshed: "{{ token_refreshed in state_raw.split() }}"
+            low_recover_at: >-
+              {{ [100, low_threshold | float + low_hysteresis | float] | min }}
+            exceed_recover_above: >-
+              {{ exceed_threshold | float + exceed_hysteresis | float }}
+            sensor_ok: >-
+              {{ is_number(states(repeat.item))
+                 and 0 <= states(repeat.item) | float(-1) <= 100
+                 and state_attr(repeat.item, 'unit_of_measurement') == '%' }}
+        - condition: template
+          value_template: "{{ sensor_ok }}"
+        # --- Exceeded ---
+        - if:
+            - condition: template
+              value_template: >-
+                {{ enable_exceeded
+                   and not armed_exceeded
+                   and remaining | float(-1) <= exceed_threshold | float }}
+          then:
+            - variables:
+                event: exceeded
+                notify_subtitle: !input subtitle_exceeded
+                message_html: >-
+                  <b>{{ friendly_name }}</b> is at <b>{{ remaining }}%</b> remaining.<br>Quota exceeded (threshold {{ exceed_threshold }}%).
+                notification_id: "codex_rates_{{ remaining_entity | slugify }}_exceeded"
+                notification_tag: "codex_rates_{{ remaining_entity | slugify }}_exceeded"
+                state_after_arm: >-
+                  {{ (state_raw.split() + [token_exceeded]) | unique | list | join(' ') }}
+            - if:
                 - condition: template
-                  value_template: "{{ notify_target != 'notify.mobile_app_' }}"
-                - action: "{{ notify_target }}"
+                  value_template: "{{ enable_persistent }}"
+              then:
+                - action: persistent_notification.create
                   data:
-                    message: clear_notification
+                    title: !input title_exceeded
+                    message: !input message_exceeded
+                    notification_id: "{{ notification_id }}"
+            - repeat:
+                for_each: !input notify_devices
+                sequence:
+                  - variables:
+                      notify_target: >-
+                        {{
+                          "notify.mobile_app_" ~ (
+                            device_attr(repeat.item, "name") or ""
+                          ) | slugify
+                        }}
+                  - condition: template
+                    value_template: "{{ notify_target != 'notify.mobile_app_' }}"
+                  - action: "{{ notify_target }}"
                     data:
-                      tag: "{{ notification_tag }}"
-          - action: input_boolean.turn_off
-            target:
-              entity_id: !input warning_state
-      - conditions: "{{ should_warn }}"
-        sequence:
-          - if:
-              - condition: template
-                value_template: "{{ enable_persistent }}"
-            then:
-              - action: persistent_notification.create
-                data:
-                  title: !input notification_title
-                  message: !input notification_message
-                  notification_id: "{{ notification_id }}"
-          - repeat:
-              for_each: !input notify_devices
-              sequence:
-                - variables:
-                    notify_target: >-
-                      {{
-                        "notify.mobile_app_" ~ (
-                          device_attr(repeat.item, "name") or ""
-                        ) | slugify
-                      }}
+                      title: !input title_exceeded
+                      message: "{{ message_html }}"
+                      data:
+                        tag: "{{ notification_tag }}"
+                        group: codex_rates_quota
+                        color: "#D32F2F"
+                        notification_icon: mdi:gauge-empty
+                        importance: high
+                        channel: Codex-LB Rates
+                        subtitle: "{{ notify_subtitle }}"
+                        subject: "{{ notify_subtitle }}"
+            - action: input_text.set_value
+              target:
+                entity_id: !input alert_state
+              data:
+                value: "{{ state_after_arm }}"
+            - sequence: !input extra_actions
+        # --- Low (band above exceeded) ---
+        - variables:
+            state_raw: "{{ states(state_helper) }}"
+            armed_low: "{{ token_low in states(state_helper).split() }}"
+            armed_exceeded: "{{ token_exceeded in states(state_helper).split() }}"
+            armed_refreshed: "{{ token_refreshed in states(state_helper).split() }}"
+        - if:
+            - condition: template
+              value_template: >-
+                {{ enable_low
+                   and not armed_low
+                   and remaining | float(-1) <= low_threshold | float
+                   and (
+                     not enable_exceeded
+                     or remaining | float(-1) > exceed_threshold | float
+                   ) }}
+          then:
+            - variables:
+                event: low
+                notify_subtitle: !input subtitle_low
+                message_html: >-
+                  <b>{{ friendly_name }}</b> is at <b>{{ remaining }}%</b> remaining.<br>Threshold: {{ low_threshold }}%
+                notification_id: "codex_rates_{{ remaining_entity | slugify }}_low"
+                notification_tag: "codex_rates_{{ remaining_entity | slugify }}_low"
+                state_after_arm: >-
+                  {{ (states(state_helper).split() + [token_low]) | unique | list | join(' ') }}
+            - if:
                 - condition: template
-                  value_template: "{{ notify_target != 'notify.mobile_app_' }}"
-                - action: "{{ notify_target }}"
+                  value_template: "{{ enable_persistent }}"
+              then:
+                - action: persistent_notification.create
                   data:
-                    title: !input notification_title
-                    message: !input notification_message
+                    title: !input title_low
+                    message: !input message_low
+                    notification_id: "{{ notification_id }}"
+            - repeat:
+                for_each: !input notify_devices
+                sequence:
+                  - variables:
+                      notify_target: >-
+                        {{
+                          "notify.mobile_app_" ~ (
+                            device_attr(repeat.item, "name") or ""
+                          ) | slugify
+                        }}
+                  - condition: template
+                    value_template: "{{ notify_target != 'notify.mobile_app_' }}"
+                  - action: "{{ notify_target }}"
                     data:
-                      tag: "{{ notification_tag }}"
-                      group: codex_rates_quota
-                      color: "#C45C26"
-                      notification_icon: mdi:gauge-empty
-                      importance: high
-                      channel: Codex-LB Rates
-                      subtitle: "{{ notify_subtitle }}"
-                      subject: "{{ notify_subtitle }}"
-          # Arm before optional extras so a failed extra action does not re-send
-          # built-in persistent/phone notifications on the next poll.
-          - action: input_boolean.turn_on
-            target:
-              entity_id: !input warning_state
-          - sequence: !input warning_action
+                      title: !input title_low
+                      message: "{{ message_html }}"
+                      data:
+                        tag: "{{ notification_tag }}"
+                        group: codex_rates_quota
+                        color: "#C45C26"
+                        notification_icon: mdi:gauge-low
+                        importance: high
+                        channel: Codex-LB Rates
+                        subtitle: "{{ notify_subtitle }}"
+                        subject: "{{ notify_subtitle }}"
+            - action: input_text.set_value
+              target:
+                entity_id: !input alert_state
+              data:
+                value: "{{ state_after_arm }}"
+            - sequence: !input extra_actions
+        # --- Refreshed ---
+        - variables:
+            state_raw: "{{ states(state_helper) }}"
+            armed_low: "{{ token_low in states(state_helper).split() }}"
+            armed_exceeded: "{{ token_exceeded in states(state_helper).split() }}"
+            armed_refreshed: "{{ token_refreshed in states(state_helper).split() }}"
+        - if:
+            - condition: template
+              value_template: >-
+                {{ enable_refreshed
+                   and not armed_refreshed
+                   and remaining | float(-1) >= refresh_threshold | float
+                   and (armed_low or armed_exceeded) }}
+          then:
+            - variables:
+                event: refreshed
+                notify_subtitle: !input subtitle_refreshed
+                message_html: >-
+                  <b>{{ friendly_name }}</b> is at <b>{{ remaining }}%</b> remaining.<br>Quota refreshed (threshold {{ refresh_threshold }}%).
+                notification_id: "codex_rates_{{ remaining_entity | slugify }}_refreshed"
+                notification_tag: "codex_rates_{{ remaining_entity | slugify }}_refreshed"
+                # Arm refreshed and clear low/exceeded flags for this sensor.
+                state_after_arm: >-
+                  {{
+                    (
+                      states(state_helper).split()
+                      | reject('eq', token_low)
+                      | reject('eq', token_exceeded)
+                      | list
+                      + [token_refreshed]
+                    )
+                    | unique | list | join(' ')
+                  }}
+            - if:
+                - condition: template
+                  value_template: "{{ enable_persistent }}"
+              then:
+                - action: persistent_notification.dismiss
+                  data:
+                    notification_id: "codex_rates_{{ remaining_entity | slugify }}_low"
+                - action: persistent_notification.dismiss
+                  data:
+                    notification_id: "codex_rates_{{ remaining_entity | slugify }}_exceeded"
+                - action: persistent_notification.create
+                  data:
+                    title: !input title_refreshed
+                    message: !input message_refreshed
+                    notification_id: "{{ notification_id }}"
+            - repeat:
+                for_each: !input notify_devices
+                sequence:
+                  - variables:
+                      notify_target: >-
+                        {{
+                          "notify.mobile_app_" ~ (
+                            device_attr(repeat.item, "name") or ""
+                          ) | slugify
+                        }}
+                  - condition: template
+                    value_template: "{{ notify_target != 'notify.mobile_app_' }}"
+                  - action: "{{ notify_target }}"
+                    data:
+                      message: clear_notification
+                      data:
+                        tag: "codex_rates_{{ remaining_entity | slugify }}_low"
+                  - action: "{{ notify_target }}"
+                    data:
+                      message: clear_notification
+                      data:
+                        tag: "codex_rates_{{ remaining_entity | slugify }}_exceeded"
+                  - action: "{{ notify_target }}"
+                    data:
+                      title: !input title_refreshed
+                      message: "{{ message_html }}"
+                      data:
+                        tag: "{{ notification_tag }}"
+                        group: codex_rates_quota
+                        color: "#2E7D32"
+                        notification_icon: mdi:gauge-full
+                        importance: default
+                        channel: Codex-LB Rates
+                        subtitle: "{{ notify_subtitle }}"
+                        subject: "{{ notify_subtitle }}"
+            - action: input_text.set_value
+              target:
+                entity_id: !input alert_state
+              data:
+                value: "{{ state_after_arm }}"
+            - sequence: !input extra_actions
+        # --- Rearm / clear recovered flags ---
+        - variables:
+            state_raw: "{{ states(state_helper) }}"
+            armed_low: "{{ token_low in states(state_helper).split() }}"
+            armed_exceeded: "{{ token_exceeded in states(state_helper).split() }}"
+            armed_refreshed: "{{ token_refreshed in states(state_helper).split() }}"
+            should_clear_low: >-
+              {{ armed_low and (
+                   (low_hysteresis | float == 0 and remaining | float(-1) > low_threshold | float)
+                   or (low_hysteresis | float > 0 and remaining | float(-1) >= low_recover_at | float)
+                 ) }}
+            should_clear_exceeded: >-
+              {{ armed_exceeded
+                 and remaining | float(-1) > exceed_recover_above | float }}
+            should_clear_refreshed: >-
+              {{ armed_refreshed
+                 and remaining | float(-1) <= refresh_rearm | float }}
+        - if:
+            - condition: template
+              value_template: "{{ should_clear_low }}"
+          then:
+            - if:
+                - condition: template
+                  value_template: "{{ enable_persistent }}"
+              then:
+                - action: persistent_notification.dismiss
+                  data:
+                    notification_id: "codex_rates_{{ remaining_entity | slugify }}_low"
+            - repeat:
+                for_each: !input notify_devices
+                sequence:
+                  - variables:
+                      notify_target: >-
+                        {{
+                          "notify.mobile_app_" ~ (
+                            device_attr(repeat.item, "name") or ""
+                          ) | slugify
+                        }}
+                  - condition: template
+                    value_template: "{{ notify_target != 'notify.mobile_app_' }}"
+                  - action: "{{ notify_target }}"
+                    data:
+                      message: clear_notification
+                      data:
+                        tag: "codex_rates_{{ remaining_entity | slugify }}_low"
+            - action: input_text.set_value
+              target:
+                entity_id: !input alert_state
+              data:
+                value: >-
+                  {{ states(state_helper).split()
+                     | reject('eq', token_low)
+                     | list | join(' ') }}
+        - if:
+            - condition: template
+              value_template: "{{ should_clear_exceeded }}"
+          then:
+            - if:
+                - condition: template
+                  value_template: "{{ enable_persistent }}"
+              then:
+                - action: persistent_notification.dismiss
+                  data:
+                    notification_id: "codex_rates_{{ remaining_entity | slugify }}_exceeded"
+            - repeat:
+                for_each: !input notify_devices
+                sequence:
+                  - variables:
+                      notify_target: >-
+                        {{
+                          "notify.mobile_app_" ~ (
+                            device_attr(repeat.item, "name") or ""
+                          ) | slugify
+                        }}
+                  - condition: template
+                    value_template: "{{ notify_target != 'notify.mobile_app_' }}"
+                  - action: "{{ notify_target }}"
+                    data:
+                      message: clear_notification
+                      data:
+                        tag: "codex_rates_{{ remaining_entity | slugify }}_exceeded"
+            - action: input_text.set_value
+              target:
+                entity_id: !input alert_state
+              data:
+                value: >-
+                  {{ states(state_helper).split()
+                     | reject('eq', token_exceeded)
+                     | list | join(' ') }}
+        - if:
+            - condition: template
+              value_template: "{{ should_clear_refreshed }}"
+          then:
+            - if:
+                - condition: template
+                  value_template: "{{ enable_persistent }}"
+              then:
+                - action: persistent_notification.dismiss
+                  data:
+                    notification_id: "codex_rates_{{ remaining_entity | slugify }}_refreshed"
+            - repeat:
+                for_each: !input notify_devices
+                sequence:
+                  - variables:
+                      notify_target: >-
+                        {{
+                          "notify.mobile_app_" ~ (
+                            device_attr(repeat.item, "name") or ""
+                          ) | slugify
+                        }}
+                  - condition: template
+                    value_template: "{{ notify_target != 'notify.mobile_app_' }}"
+                  - action: "{{ notify_target }}"
+                    data:
+                      message: clear_notification
+                      data:
+                        tag: "codex_rates_{{ remaining_entity | slugify }}_refreshed"
+            - action: input_text.set_value
+              target:
+                entity_id: !input alert_state
+              data:
+                value: >-
+                  {{ states(state_helper).split()
+                     | reject('eq', token_refreshed)
+                     | list | join(' ') }}
 
-mode: single
+mode: queued
+max: 10
 max_exceeded: silent
