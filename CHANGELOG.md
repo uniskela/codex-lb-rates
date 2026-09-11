@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/uniskela/codex-lb-rates/compare/v0.4.0...v0.4.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* make quota blueprint helper required and style notifies ([0005d75](https://github.com/uniskela/codex-lb-rates/commit/0005d75d6f9735629ed79241a4571a92069ddcc4))
+* make quota blueprint helper required and style notifies ([7b61e52](https://github.com/uniskela/codex-lb-rates/commit/7b61e52585586b4708adca2f72ab1fefe444219e))
+
 ## [0.4.0](https://github.com/uniskela/codex-lb-rates/compare/v0.3.2...v0.4.0) (2026-09-11)
 
 
