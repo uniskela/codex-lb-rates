@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/uniskela/codex-lb-rates/compare/v0.3.2...v0.4.0) (2026-09-11)
+
+
+### Features
+
+* add persistent and phone notify to quota blueprint ([0e46148](https://github.com/uniskela/codex-lb-rates/commit/0e461481a0db2ff6febb0c479f9f005f4e6e7689))
+* add persistent and phone notify to quota blueprint ([31c3d8d](https://github.com/uniskela/codex-lb-rates/commit/31c3d8d8a413895dbe65d2979d6480bd1240878f))
+
 ## [0.3.2](https://github.com/uniskela/codex-lb-rates/compare/v0.3.1...v0.3.2) (2026-09-10)
 
 
