@@ -75,6 +75,8 @@ blueprint:
           description: >-
             Optional. Companion app devices (`mobile_app`). Leave empty to skip
             phone notifications. Cleared automatically when the warning rearms.
+            Uses each device's `notify.mobile_app_*` service derived from the
+            Companion device name (not a Home Assistant UI rename).
           default: []
           selector:
             device:
@@ -168,12 +170,20 @@ actions:
           - repeat:
               for_each: !input notify_devices
               sequence:
-                - device_id: "{{ repeat.item }}"
-                  domain: mobile_app
-                  type: notify
-                  message: clear_notification
+                - variables:
+                    notify_target: >-
+                      {{
+                        "notify.mobile_app_" ~ (
+                          device_attr(repeat.item, "name") or ""
+                        ) | slugify
+                      }}
+                - condition: template
+                  value_template: "{{ notify_target != 'notify.mobile_app_' }}"
+                - action: "{{ notify_target }}"
                   data:
-                    tag: "{{ notification_tag }}"
+                    message: clear_notification
+                    data:
+                      tag: "{{ notification_tag }}"
           - action: input_boolean.turn_off
             target:
               entity_id: !input warning_state
@@ -191,20 +201,28 @@ actions:
           - repeat:
               for_each: !input notify_devices
               sequence:
-                - device_id: "{{ repeat.item }}"
-                  domain: mobile_app
-                  type: notify
-                  title: !input notification_title
-                  message: !input notification_message
+                - variables:
+                    notify_target: >-
+                      {{
+                        "notify.mobile_app_" ~ (
+                          device_attr(repeat.item, "name") or ""
+                        ) | slugify
+                      }}
+                - condition: template
+                  value_template: "{{ notify_target != 'notify.mobile_app_' }}"
+                - action: "{{ notify_target }}"
                   data:
-                    tag: "{{ notification_tag }}"
-                    group: codex_rates_quota
-                    color: "#C45C26"
-                    notification_icon: mdi:gauge-empty
-                    importance: high
-                    channel: Codex-LB Rates
-                    subtitle: "{{ notify_subtitle }}"
-                    subject: "{{ notify_subtitle }}"
+                    title: !input notification_title
+                    message: !input notification_message
+                    data:
+                      tag: "{{ notification_tag }}"
+                      group: codex_rates_quota
+                      color: "#C45C26"
+                      notification_icon: mdi:gauge-empty
+                      importance: high
+                      channel: Codex-LB Rates
+                      subtitle: "{{ notify_subtitle }}"
+                      subject: "{{ notify_subtitle }}"
           # Arm before optional extras so a failed extra action does not re-send
           # built-in persistent/phone notifications on the next poll.
           - action: input_boolean.turn_on
