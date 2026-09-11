@@ -22,6 +22,16 @@ blueprint:
           filter:
             domain: sensor
             unit_of_measurement: "%"
+    warning_state:
+      name: Persistent warning helper (required)
+      description: >-
+        **Required.** Create a Toggle helper first
+        (Settings → Devices & services → Helpers), leave its initial value
+        unset, then select it here. Use one helper per automation.
+      selector:
+        entity:
+          filter:
+            domain: input_boolean
     warning_threshold:
       name: Warning threshold (remaining %)
       description: Warn when remaining is at or below this value.
@@ -44,55 +54,68 @@ blueprint:
           max: 100
           unit_of_measurement: pp
           mode: box
-    warning_state:
-      name: Persistent warning helper
-      description: A separate input_boolean for this automation; leave its initial value unset.
-      selector:
-        entity:
-          filter:
-            domain: input_boolean
-    enable_persistent:
-      name: Home Assistant persistent notification
+    notification_section:
+      name: Notifications
+      icon: mdi:bell-badge
       description: >-
-        Show a dismissible notification in the Home Assistant UI when the
-        warning fires. Dismissed automatically when the warning rearms.
-      default: true
-      selector:
-        boolean:
-    notify_device:
-      name: Phone to notify
-      description: >-
-        Optional. Companion app device (mobile_app) to notify. Leave empty to
-        skip phone notifications. Cleared automatically when the warning rearms.
-      default: ""
-      selector:
-        device:
-          filter:
-            - integration: mobile_app
-    notification_title:
-      name: Notification title
-      description: Title used for persistent and phone notifications.
-      default: Codex-LB Rates quota low
-      selector:
-        text:
-    notification_message:
-      name: Notification message
-      description: >-
-        Message for persistent and phone notifications. Templates may use
-        remaining_entity, remaining, and threshold.
-      default: >-
-        {{ state_attr(remaining_entity, 'friendly_name') or remaining_entity }} is at {{ remaining }}% remaining (threshold {{ threshold }}%).
-      selector:
-        text:
-          multiline: true
-    warning_action:
-      name: Additional warning actions
-      description: >-
-        Optional extra actions after built-in notifications (TTS, scripts,
-        etc.). Leave empty if persistent and/or phone notify is enough.
-      default: []
-      selector:
-        action: {}
+        Built-in HA UI and Companion phone alerts. Leave phones empty to skip
+        mobile notifications.
+      collapsed: true
+      input:
+        enable_persistent:
+          name: Home Assistant persistent notification
+          description: >-
+            Show a dismissible notification in the Home Assistant UI when the
+            warning fires. Dismissed automatically when the warning rearms.
+          default: true
+          selector:
+            boolean:
+        notify_devices:
+          name: Phones to notify
+          description: >-
+            Optional. Companion app devices (`mobile_app`). Leave empty to skip
+            phone notifications. Cleared automatically when the warning rearms.
+          default: []
+          selector:
+            device:
+              multiple: true
+              filter:
+                - integration: mobile_app
+        notification_title:
+          name: Notification title
+          description: Title used for persistent and phone notifications.
+          default: "⚠️ Codex-LB Rates quota low"
+          selector:
+            text:
+        notification_subtitle:
+          name: Notification subtitle
+          description: >-
+            Secondary line on Companion notifications (iOS subtitle / Android
+            subject). Leave blank to omit.
+          default: "Quota remaining is below your threshold"
+          selector:
+            text:
+        notification_message:
+          name: Notification message
+          description: >-
+            Body for persistent and phone notifications. Templates may use
+            `remaining_entity`, `remaining`, and `threshold`. Companion apps
+            also get color, icon, channel, and subtitle styling.
+          default: |
+            {{ state_attr(remaining_entity, 'friendly_name') or remaining_entity }} is at {{ remaining }}% remaining.
+
+            Threshold: {{ threshold }}%
+          selector:
+            text:
+              multiline: true
+        warning_action:
+          name: Additional warning actions
+          description: >-
+            Optional extra actions after built-in notifications (TTS, scripts,
+            etc.). Leave empty if persistent and/or phone notify is enough.
+          default: []
+          selector:
+            action: {}
 
 triggers:
   - trigger: state
@@ -108,7 +131,8 @@ variables:
   recovery_margin: !input hysteresis
   warning_helper: !input warning_state
   enable_persistent: !input enable_persistent
-  notify_device: !input notify_device
+  notify_devices: !input notify_devices
+  notify_subtitle: !input notification_subtitle
   remaining: "{{ states(remaining_entity) | float(-1) }}"
   recover_at: "{{ [100, threshold | float + recovery_margin | float] | min }}"
   notification_id: "codex_rates_{{ warning_helper | slugify }}"
@@ -141,16 +165,15 @@ actions:
               - action: persistent_notification.dismiss
                 data:
                   notification_id: "{{ notification_id }}"
-          - if:
-              - condition: template
-                value_template: "{{ notify_device not in [none, ''] }}"
-            then:
-              - device_id: !input notify_device
-                domain: mobile_app
-                type: notify
-                message: clear_notification
-                data:
-                  tag: "{{ notification_tag }}"
+          - repeat:
+              for_each: !input notify_devices
+              sequence:
+                - device_id: "{{ repeat.item }}"
+                  domain: mobile_app
+                  type: notify
+                  message: clear_notification
+                  data:
+                    tag: "{{ notification_tag }}"
           - action: input_boolean.turn_off
             target:
               entity_id: !input warning_state
@@ -165,17 +188,23 @@ actions:
                   title: !input notification_title
                   message: !input notification_message
                   notification_id: "{{ notification_id }}"
-          - if:
-              - condition: template
-                value_template: "{{ notify_device not in [none, ''] }}"
-            then:
-              - device_id: !input notify_device
-                domain: mobile_app
-                type: notify
-                title: !input notification_title
-                message: !input notification_message
-                data:
-                  tag: "{{ notification_tag }}"
+          - repeat:
+              for_each: !input notify_devices
+              sequence:
+                - device_id: "{{ repeat.item }}"
+                  domain: mobile_app
+                  type: notify
+                  title: !input notification_title
+                  message: !input notification_message
+                  data:
+                    tag: "{{ notification_tag }}"
+                    group: codex_rates_quota
+                    color: "#C45C26"
+                    notification_icon: mdi:gauge-empty
+                    importance: high
+                    channel: Codex-LB Rates
+                    subtitle: "{{ notify_subtitle }}"
+                    subject: "{{ notify_subtitle }}"
           # Arm before optional extras so a failed extra action does not re-send
           # built-in persistent/phone notifications on the next poll.
           - action: input_boolean.turn_on

@@ -86,7 +86,7 @@ Ship a Home Assistant automation blueprint that warns once when a **remaining %*
 
 1. Create a **Toggle** helper (**Settings → Devices & services → Helpers**) with no forced initial value — one helper per automation.
 2. Copy [`blueprints/automation/codex_rates/quota_warning.yaml`](blueprints/automation/codex_rates/quota_warning.yaml) into `config/blueprints/automation/codex_rates/` on your HA instance (or import the raw file URL from the release you installed).
-3. **Create automation → Use blueprint** and pick a remaining-% sensor (pool or account), threshold, helper, and optional phone device (extra actions still available).
+3. **Create automation → Use blueprint** and pick a remaining-% sensor, the required Toggle helper, threshold, and optional phone devices (extra actions still available).
 
 Works for pool gauges and per-account 5h / weekly remaining sensors. Sensors are **remaining**, not used — threshold 20 means warn when ≤20% is left.
 
