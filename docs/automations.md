@@ -49,7 +49,7 @@ You can also open **Settings → Automations & scenes → Blueprints → Import 
    - Optionally add **Additional warning actions** (TTS, scripts, etc.).
 7. Save.
 
-Phone notifications require the official Home Assistant Companion app with notification permission.
+Phone notifications require the official Home Assistant Companion app with notification permission. The blueprint calls `notify.mobile_app_<slugified_device_name>` for each selected phone (Home Assistant does not allow templated device actions).
 
 If you see `Missing input warning_state`, the Toggle helper was not selected — create it in step 1 and pick it before saving.
 
