@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/uniskela/codex-lb-rates/compare/v0.4.2...v0.5.0) (2026-09-11)
+
+
+### Features
+
+* multi-sensor multi-threshold quota alert blueprint ([6ffa16c](https://github.com/uniskela/codex-lb-rates/commit/6ffa16c5cd5df1f856905888ee2c45fcecb0f89b))
+* multi-sensor multi-threshold quota alert blueprint ([412176f](https://github.com/uniskela/codex-lb-rates/commit/412176f300f753cc69c37182c76a3d4e7161a7f2))
+
 ## [0.4.2](https://github.com/uniskela/codex-lb-rates/compare/v0.4.1...v0.4.2) (2026-09-11)
 
 
