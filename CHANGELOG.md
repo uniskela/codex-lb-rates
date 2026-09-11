@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.2](https://github.com/uniskela/codex-lb-rates/compare/v0.4.1...v0.4.2) (2026-09-11)
+
+
+### Bug Fixes
+
+* use notify services instead of templated device actions ([b68efc6](https://github.com/uniskela/codex-lb-rates/commit/b68efc625663c10410698413159966d4d6c2f460))
+* use notify services instead of templated device actions ([1b3896e](https://github.com/uniskela/codex-lb-rates/commit/1b3896e768f2f2d9640a79d1fddb96e1f27a9092))
+
 ## [0.4.1](https://github.com/uniskela/codex-lb-rates/compare/v0.4.0...v0.4.1) (2026-09-11)
 
 
