@@ -82,15 +82,15 @@ entities:
 
 ## Quota alerts
 
-Ship a Home Assistant automation blueprint that alerts on **low**, **exceeded**, and **refreshed** remaining-% levels across one or more pool/account sensors. Uses a Text helper to remember which alerts already fired so you are not spammed. Can notify the HA UI and/or Companion phones without a custom action.
+Ship a Home Assistant automation blueprint that alerts on **low**, **exceeded**, and **refreshed** remaining-% levels across one or more pool/account sensors. A **Text helper** is the automation’s memory (which alerts already fired) so you are not spammed. Can notify the HA UI and/or Companion phones without a custom action.
 
-1. Create a **Text** helper (**Settings → Devices & services → Helpers**) with max length **255** and empty initial value — one helper per automation.
-2. Copy [`blueprints/automation/codex_rates/quota_warning.yaml`](blueprints/automation/codex_rates/quota_warning.yaml) into `config/blueprints/automation/codex_rates/` on your HA instance (or import the raw file URL from the release you installed).
-3. **Create automation → Use blueprint** and pick remaining-% sensors, the Text helper, alert levels, and optional phones.
+1. Create a **Text** helper: **Settings → Devices & services → Helpers → Create helper → Text**, name it, set max length **255**, leave initial value **blank**.
+2. Copy [`blueprints/automation/codex_rates/quota_warning.yaml`](blueprints/automation/codex_rates/quota_warning.yaml) into `config/blueprints/automation/codex_rates/` (or import the raw URL from your release).
+3. **Create automation → Use blueprint**, pick remaining-% sensors, that Text helper, alert levels, and optional phones.
+
+You never need to type into the helper yourself — the blueprint fills it with tokens like `sensor.foo::low`. Full walkthrough: [docs/automations.md](docs/automations.md).
 
 Works for pool gauges and per-account 5h / weekly remaining sensors. Sensors are **remaining**, not used — low threshold 20 means warn when ≤20% is left (and above the exceeded band).
-
-More detail: [docs/automations.md](docs/automations.md).
 
 ## Security
 
