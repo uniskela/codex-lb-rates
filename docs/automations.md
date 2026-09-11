@@ -7,8 +7,10 @@ Warn once when a Codex-LB Rates **remaining %** sensor drops to or below a thres
 Built-in delivery channels:
 
 - **Home Assistant persistent notification** (UI bell) — on by default; dismissed when the warning rearms
-- **Companion phone** (`mobile_app` device) — optional; cleared when the warning rearms
+- **Companion phone(s)** (`mobile_app` devices) — optional; cleared when the warning rearms
 - **Additional actions** — optional TTS, scripts, etc.
+
+Phone alerts use a styled title (emoji), subtitle, color, and gauge icon. Edit title/subtitle/message under the Notifications section if you want different wording.
 
 ### 1. Create a helper
 
@@ -37,15 +39,19 @@ You can also open **Settings → Automations & scenes → Blueprints → Import 
 2. Pick a **remaining %** sensor (unit `%`), for example:
    - Pool: `sensor.…_all_accounts_5h_remaining` / `…_all_accounts_weekly_remaining`
    - Account: `sensor.…_5h_remaining` / `…_weekly_remaining`
-3. Set **Warning threshold** (default **20** remaining %).
-4. Set **Recovery margin** (default **5** pp). The helper turns off when remaining ≥ threshold + margin.
-5. Select the **input_boolean** helper from step 1.
-6. Leave **Home Assistant persistent notification** enabled (default), or turn it off.
-7. Optionally pick a **Phone to notify** (Companion app device). Leave empty to skip phone notifications.
-8. Optionally edit the notification title/message, or add **Additional warning actions** (TTS, scripts, etc.).
-9. Save.
+3. Select the **Persistent warning helper** from step 1 (required — save fails without it).
+4. Set **Warning threshold** (default **20** remaining %).
+5. Set **Recovery margin** (default **5** pp). The helper turns off when remaining ≥ threshold + margin.
+6. Open **Notifications** (collapsed by default):
+   - Leave **Home Assistant persistent notification** enabled, or turn it off.
+   - Optionally pick one or more **Phones to notify** (Companion app). Leave empty to skip.
+   - Optionally edit title, subtitle, and message.
+   - Optionally add **Additional warning actions** (TTS, scripts, etc.).
+7. Save.
 
 Phone notifications require the official Home Assistant Companion app with notification permission.
+
+If you see `Missing input warning_state`, the Toggle helper was not selected — create it in step 1 and pick it before saving.
 
 ### Behaviour
 
