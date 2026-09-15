@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.0](https://github.com/uniskela/codex-lb-rates/compare/v0.5.0...v0.6.0) (2026-09-15)
+
+
+### Features
+
+* add reset display toggle for countdown vs absolute ([f8f3d3d](https://github.com/uniskela/codex-lb-rates/commit/f8f3d3dc9bf39cbd17b79760fa91a178b0a4e3c8))
+
+
+### Bug Fixes
+
+* improve weighted quota sensors ([6083f1a](https://github.com/uniskela/codex-lb-rates/commit/6083f1adaa68aa4703ff366f5c2bb13a94a67f68))
+* preserve disabled/hidden entities when windows drop ([3be848a](https://github.com/uniskela/codex-lb-rates/commit/3be848aee1362a77e0a39b1dfb9b6bf3b8ae28d2))
+* reconcile quota windows and render account status ([1c6b9e2](https://github.com/uniskela/codex-lb-rates/commit/1c6b9e2e4a00770f58b43b77e8c079649b512526))
+
 ## [0.5.0](https://github.com/uniskela/codex-lb-rates/compare/v0.4.2...v0.5.0) (2026-09-11)
 
 
