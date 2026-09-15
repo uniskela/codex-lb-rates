@@ -469,3 +469,276 @@ def test_cleanup_removes_lb_monthly_when_api_omits_monthly() -> None:
         ) = originals
 
     assert set(entity_reg.removed) == {"sensor.monthly", "sensor.pool_m"}
+
+
+def test_cleanup_preserves_disabled_and_hidden_optional_windows() -> None:
+    class FakeEntity:
+        def __init__(
+            self,
+            entity_id: str,
+            unique_id: str,
+            *,
+            disabled_by=None,
+            hidden_by=None,
+        ) -> None:
+            self.entity_id = entity_id
+            self.unique_id = unique_id
+            self.disabled_by = disabled_by
+            self.hidden_by = hidden_by
+
+    class FakeEntityRegistry:
+        def __init__(self) -> None:
+            self.removed: list[str] = []
+            self._entries = [
+                FakeEntity("sensor.ok", "entry1_acc1_remaining_5h"),
+                FakeEntity(
+                    "sensor.monthly",
+                    "entry1_acc1_remaining_monthly",
+                    disabled_by="user",
+                ),
+                FakeEntity(
+                    "sensor.spark",
+                    "entry1_acc1_remaining_spark_weekly",
+                    hidden_by="user",
+                ),
+                FakeEntity("sensor.pool_m", "entry1_pool_remaining_monthly"),
+            ]
+
+        def async_remove(self, entity_id: str) -> None:
+            self.removed.append(entity_id)
+
+    class FakeDeviceRegistry:
+        def __init__(self):
+            self.devices = {}
+
+        def async_remove_device(self, device_id: str) -> None:
+            raise AssertionError("should not remove devices")
+
+    entry = SimpleNamespace(
+        entry_id="entry1", data={CONF_MODE: MODE_CODEX_LB}, options={}
+    )
+    snapshot = ProviderSnapshot(
+        accounts=[AccountQuota(account_id="acc1", remaining_5h=50)]
+    )
+    hass = SimpleNamespace()
+    entity_reg = FakeEntityRegistry()
+    device_reg = FakeDeviceRegistry()
+
+    import custom_components.codex_rates.sensor as sensor_mod
+
+    originals = _patch_registries(sensor_mod, device_reg, entity_reg)
+    try:
+        cleanup_orphan_devices(hass, entry, snapshot)  # type: ignore[arg-type]
+    finally:
+        (
+            sensor_mod.dr.async_get,
+            sensor_mod.dr.async_entries_for_config_entry,
+            sensor_mod.er.async_get,
+            sensor_mod.er.async_entries_for_config_entry,
+        ) = originals
+
+    assert entity_reg.removed == ["sensor.pool_m"]
+
+
+@pytest.mark.asyncio
+async def test_reconcile_soft_removes_hidden_window_without_wiping_registry(
+    monkeypatch,
+) -> None:
+    import custom_components.codex_rates.sensor as sensor_mod
+    from custom_components.codex_rates.models import compute_pool_aggregate
+
+    account = AccountQuota(
+        account_id="acc1",
+        remaining_weekly=40,
+        remaining_5h=10,
+        remaining_spark_weekly=0,
+    )
+    accounts = [account]
+    listeners = []
+    unload = []
+    tasks = []
+    coordinator = SimpleNamespace(last_update_success=True)
+    coordinator.async_add_listener = lambda callback: (
+        listeners.append(callback),
+        lambda: None,
+    )[1]
+    coordinator.data = ProviderSnapshot(
+        accounts=accounts, pool=compute_pool_aggregate(accounts)
+    )
+
+    class FakeEntity:
+        def __init__(self, entity_id: str, unique_id: str, *, hidden_by=None) -> None:
+            self.entity_id = entity_id
+            self.unique_id = unique_id
+            self.disabled_by = None
+            self.hidden_by = hidden_by
+
+    class FakeEntityRegistry:
+        def __init__(self) -> None:
+            self.removed: list[str] = []
+            self._entries: list[FakeEntity] = []
+
+        def async_remove(self, entity_id: str) -> None:
+            self.removed.append(entity_id)
+            self._entries = [e for e in self._entries if e.entity_id != entity_id]
+
+    entity_reg = FakeEntityRegistry()
+    hass = SimpleNamespace(
+        data={DOMAIN: {"entry": coordinator}},
+        entities={},
+        removed=[],
+        force_removed=[],
+        soft_removed=[],
+    )
+
+    def create_task(coro):
+        task = asyncio.create_task(coro)
+        tasks.append(task)
+        return task
+
+    hass.async_create_task = create_task
+    entry = SimpleNamespace(
+        entry_id="entry",
+        data={CONF_MODE: MODE_CODEX_LB},
+        options={},
+        async_on_unload=unload.append,
+    )
+
+    def add_entities(entities):
+        for entity in entities:
+            assert entity.unique_id not in hass.entities
+            entity.hass = hass
+            hass.entities[entity.unique_id] = entity
+            if not any(e.unique_id == entity.unique_id for e in entity_reg._entries):
+                entity_reg._entries.append(
+                    FakeEntity(f"sensor.{entity.unique_id}", entity.unique_id)
+                )
+
+    device_reg = SimpleNamespace(devices={})
+    originals = _patch_registries(sensor_mod, device_reg, entity_reg)
+    try:
+        await sensor_mod.async_setup_entry(hass, entry, add_entities)
+        spark_uid = "entry_acc1_remaining_spark_weekly"
+        assert spark_uid in hass.entities
+        spark_reg = next(e for e in entity_reg._entries if e.unique_id == spark_uid)
+        spark_reg.hidden_by = "user"
+
+        account.remaining_spark_weekly = None
+        coordinator.data = ProviderSnapshot(
+            accounts=accounts, pool=compute_pool_aggregate(accounts)
+        )
+        listeners[0]()
+        await asyncio.gather(*tasks)
+
+        assert spark_uid not in hass.entities
+        assert spark_uid in hass.soft_removed
+        assert spark_uid not in hass.force_removed
+        assert spark_uid not in entity_reg.removed
+        assert any(e.unique_id == spark_uid for e in entity_reg._entries)
+    finally:
+        (
+            sensor_mod.dr.async_get,
+            sensor_mod.dr.async_entries_for_config_entry,
+            sensor_mod.er.async_get,
+            sensor_mod.er.async_entries_for_config_entry,
+        ) = originals
+        for callback in unload:
+            callback()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_force_removes_enabled_window_when_it_disappears(
+    monkeypatch,
+) -> None:
+    import custom_components.codex_rates.sensor as sensor_mod
+    from custom_components.codex_rates.models import compute_pool_aggregate
+
+    account = AccountQuota(
+        account_id="acc1",
+        remaining_weekly=40,
+        remaining_spark_weekly=0,
+    )
+    accounts = [account]
+    listeners = []
+    unload = []
+    tasks = []
+    coordinator = SimpleNamespace(last_update_success=True)
+    coordinator.async_add_listener = lambda callback: (
+        listeners.append(callback),
+        lambda: None,
+    )[1]
+    coordinator.data = ProviderSnapshot(
+        accounts=accounts, pool=compute_pool_aggregate(accounts)
+    )
+
+    class FakeEntity:
+        def __init__(self, entity_id: str, unique_id: str) -> None:
+            self.entity_id = entity_id
+            self.unique_id = unique_id
+            self.disabled_by = None
+            self.hidden_by = None
+
+    class FakeEntityRegistry:
+        def __init__(self) -> None:
+            self.removed: list[str] = []
+            self._entries: list[FakeEntity] = []
+
+        def async_remove(self, entity_id: str) -> None:
+            self.removed.append(entity_id)
+            self._entries = [e for e in self._entries if e.entity_id != entity_id]
+
+    entity_reg = FakeEntityRegistry()
+    hass = SimpleNamespace(
+        data={DOMAIN: {"entry": coordinator}},
+        entities={},
+        removed=[],
+        force_removed=[],
+        soft_removed=[],
+    )
+
+    def create_task(coro):
+        task = asyncio.create_task(coro)
+        tasks.append(task)
+        return task
+
+    hass.async_create_task = create_task
+    entry = SimpleNamespace(
+        entry_id="entry",
+        data={CONF_MODE: MODE_CODEX_LB},
+        options={},
+        async_on_unload=unload.append,
+    )
+
+    def add_entities(entities):
+        for entity in entities:
+            entity.hass = hass
+            hass.entities[entity.unique_id] = entity
+            if not any(e.unique_id == entity.unique_id for e in entity_reg._entries):
+                entity_reg._entries.append(
+                    FakeEntity(f"sensor.{entity.unique_id}", entity.unique_id)
+                )
+
+    device_reg = SimpleNamespace(devices={})
+    originals = _patch_registries(sensor_mod, device_reg, entity_reg)
+    try:
+        await sensor_mod.async_setup_entry(hass, entry, add_entities)
+        spark_uid = "entry_acc1_remaining_spark_weekly"
+        account.remaining_spark_weekly = None
+        coordinator.data = ProviderSnapshot(
+            accounts=accounts, pool=compute_pool_aggregate(accounts)
+        )
+        listeners[0]()
+        await asyncio.gather(*tasks)
+
+        assert spark_uid not in hass.entities
+        assert spark_uid in hass.force_removed
+        assert f"sensor.{spark_uid}" in entity_reg.removed
+    finally:
+        (
+            sensor_mod.dr.async_get,
+            sensor_mod.dr.async_entries_for_config_entry,
+            sensor_mod.er.async_get,
+            sensor_mod.er.async_entries_for_config_entry,
+        ) = originals
+        for callback in unload:
+            callback()

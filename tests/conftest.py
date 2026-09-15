@@ -166,6 +166,14 @@ def _ensure_homeassistant_stubs() -> None:
         async def async_remove(self, *, force_remove=False):
             self.hass.entities.pop(self.unique_id, None)
             self.hass.removed.append(self.unique_id)
+            if force_remove:
+                force_removed = getattr(self.hass, "force_removed", None)
+                if force_removed is not None:
+                    force_removed.append(self.unique_id)
+            else:
+                soft_removed = getattr(self.hass, "soft_removed", None)
+                if soft_removed is not None:
+                    soft_removed.append(self.unique_id)
 
     sensor.SensorEntity = SensorEntity
     sensor.SensorEntityDescription = SensorEntityDescription
