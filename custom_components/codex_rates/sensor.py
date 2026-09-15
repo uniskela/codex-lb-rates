@@ -374,8 +374,17 @@ async def async_setup_entry(
             for unique_id in entities.keys() - desired.keys():
                 entity = entities.pop(unique_id)
                 # Disabled entities may never have been added to the platform.
-                if entity.hass is not None:
-                    await entity.async_remove(force_remove=True)
+                if entity.hass is None:
+                    continue
+                # Keep user disabled/hidden registry prefs when a quota window
+                # disappears temporarily; only wipe the registry for gone accounts
+                # or permanently unwanted keys.
+                preserve = _unsupported_quota_window(
+                    entry, snapshot, unique_id
+                ) and _registry_entry_is_suppressed(
+                    _registry_entry_for_unique_id(hass, entry.entry_id, unique_id)
+                )
+                await entity.async_remove(force_remove=not preserve)
             cleanup_orphan_devices(hass, entry, snapshot)
             added = [entity for key, entity in desired.items() if key not in entities]
             entities.update((entity.unique_id, entity) for entity in added)
@@ -458,6 +467,57 @@ def sensor_key_from_unique_id(entry_id: str, unique_id: str) -> str | None:
     return None
 
 
+def _registry_entry_is_suppressed(registry_entry: Any) -> bool:
+    """True when the user disabled or hid the entity in the registry."""
+    return (
+        getattr(registry_entry, "disabled_by", None) is not None
+        or getattr(registry_entry, "hidden_by", None) is not None
+    )
+
+
+def _unsupported_quota_window(
+    entry: ConfigEntry, snapshot: ProviderSnapshot, unique_id: str
+) -> bool:
+    """True when the account/pool still exists but no longer reports this window."""
+    account_id = account_id_from_unique_id(entry.entry_id, unique_id)
+    sensor_key = sensor_key_from_unique_id(entry.entry_id, unique_id)
+    if account_id is None or sensor_key is None:
+        return False
+    if account_id == POOL_DEVICE_ID and sensor_key in _POOL_SENSOR_KEYS:
+        return not any(
+            getattr(item, sensor_key) is not None for item in snapshot.accounts
+        )
+    account = next(
+        (item for item in snapshot.accounts if item.account_id == account_id),
+        None,
+    )
+    return account is not None and not _account_supports_description(account, sensor_key)
+
+
+def _registry_entry_for_unique_id(
+    hass: HomeAssistant, entry_id: str, unique_id: str
+) -> Any | None:
+    try:
+        entity_reg = er.async_get(hass)
+    except Exception:  # noqa: BLE001 — stubs / early init
+        return None
+    if entity_reg is None:
+        return None
+    entities = getattr(entity_reg, "entities", None)
+    if isinstance(entities, dict):
+        for reg_entry in entities.values():
+            if getattr(reg_entry, "unique_id", None) == unique_id:
+                return reg_entry
+    try:
+        candidates = er.async_entries_for_config_entry(entity_reg, entry_id)
+    except Exception:  # noqa: BLE001
+        candidates = list(getattr(entity_reg, "_entries", []))
+    for reg_entry in candidates:
+        if getattr(reg_entry, "unique_id", None) == unique_id:
+            return reg_entry
+    return None
+
+
 def cleanup_orphan_devices(
     hass: HomeAssistant, entry: ConfigEntry, snapshot: ProviderSnapshot
 ) -> list[str]:
@@ -511,18 +571,7 @@ def cleanup_orphan_devices(
             sensor_key = sensor_key_from_unique_id(entry.entry_id, unique_id)
             if account_id is None or sensor_key is None:
                 continue
-            account = next(
-                (item for item in snapshot.accounts if item.account_id == account_id),
-                None,
-            )
-            unsupported_window = (
-                account is not None
-                and not _account_supports_description(account, sensor_key)
-            )
-            if account_id == POOL_DEVICE_ID and sensor_key in _POOL_SENSOR_KEYS:
-                unsupported_window = not any(
-                    getattr(item, sensor_key) is not None for item in snapshot.accounts
-                )
+            unsupported_window = _unsupported_quota_window(entry, snapshot, unique_id)
             if (
                 account_id not in live
                 or sensor_key not in allowed_keys
@@ -530,10 +579,7 @@ def cleanup_orphan_devices(
             ):
                 # Do not erase a user-disabled entity's preference/history merely
                 # because this API response no longer exposes its quota window.
-                if unsupported_window and (
-                    getattr(entity, "disabled_by", None) is not None
-                    or getattr(entity, "hidden_by", None) is not None
-                ):
+                if unsupported_window and _registry_entry_is_suppressed(entity):
                     continue
                 entity_reg.async_remove(entity.entity_id)
 
