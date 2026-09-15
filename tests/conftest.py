@@ -61,6 +61,14 @@ def _ensure_homeassistant_stubs() -> None:
     data_entry_flow = _mod("homeassistant.data_entry_flow")
     data_entry_flow.FlowResult = dict
 
+    util = _mod("homeassistant.util")
+    dt_util = _mod("homeassistant.util.dt")
+    from datetime import timezone
+
+    dt_util.DEFAULT_TIME_ZONE = timezone.utc
+    dt_util.as_local = lambda dt: dt.astimezone(dt_util.DEFAULT_TIME_ZONE)
+    util.dt = dt_util
+
     helpers = _mod("homeassistant.helpers")
     aiohttp_client = _mod("homeassistant.helpers.aiohttp_client")
     aiohttp_client.async_get_clientsession = lambda hass, **kwargs: None
@@ -141,16 +149,27 @@ def _ensure_homeassistant_stubs() -> None:
         entity_registry_enabled_default: bool = True
         entity_registry_visible_default: bool = True
         force_update: bool = False
+        options: list[str] | None = None
         icon: str | None = None
         has_entity_name: bool = False
         unit_of_measurement: str | None = None
 
     class SensorEntity:
-        """Stub."""
+        """Small entity lifecycle contract used by platform reconciliation tests."""
+
+        hass = None
+
+        @property
+        def unique_id(self):
+            return self._attr_unique_id
+
+        async def async_remove(self, *, force_remove=False):
+            self.hass.entities.pop(self.unique_id, None)
+            self.hass.removed.append(self.unique_id)
 
     sensor.SensorEntity = SensorEntity
     sensor.SensorEntityDescription = SensorEntityDescription
-    sensor.SensorDeviceClass = types.SimpleNamespace(TIMESTAMP="timestamp")
+    sensor.SensorDeviceClass = types.SimpleNamespace(TIMESTAMP="timestamp", ENUM="enum")
     sensor.SensorStateClass = types.SimpleNamespace(MEASUREMENT="measurement")
 
 

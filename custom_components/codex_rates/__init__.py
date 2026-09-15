@@ -44,7 +44,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
     """Handle config entry updates.
 
     Token refresh updates ``entry.data`` and must only rebuild the provider.
-    Options changes (poll interval / rich sensors) reload platforms.
+    Options changes (poll interval / rich sensors / reset display) reload platforms.
     """
     coordinator: CodexRatesCoordinator = hass.data[DOMAIN][entry.entry_id]
     interval = entry.options.get(CONF_POLL_INTERVAL, 60)

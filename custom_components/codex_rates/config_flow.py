@@ -33,11 +33,13 @@ from .const import (
     CONF_PASSWORD,
     CONF_POLL_INTERVAL,
     CONF_REFRESH_TOKEN,
+    CONF_RESET_DISPLAY,
     CONF_RICH_SENSORS,
     CONF_TOTP_SECRET,
     CONF_VERIFY_SSL,
     DEFAULT_LB_LOGIN,
     DEFAULT_POLL_INTERVAL,
+    DEFAULT_RESET_DISPLAY,
     DEFAULT_RICH_SENSORS,
     DEFAULT_VERIFY_SSL,
     DOMAIN,
@@ -46,6 +48,7 @@ from .const import (
     MIN_POLL_INTERVAL,
     MODE_CHATGPT,
     MODE_CODEX_LB,
+    RESET_DISPLAY_OPTIONS,
 )
 from .exceptions import CodexRatesApiError, CodexRatesAuthError
 from .oauth import (
@@ -146,6 +149,7 @@ class CodexRatesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         options={
                             CONF_POLL_INTERVAL: DEFAULT_POLL_INTERVAL,
                             CONF_RICH_SENSORS: DEFAULT_RICH_SENSORS,
+                            CONF_RESET_DISPLAY: DEFAULT_RESET_DISPLAY,
                         },
                     )
 
@@ -419,12 +423,13 @@ class CodexRatesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             options={
                 CONF_POLL_INTERVAL: DEFAULT_POLL_INTERVAL,
                 CONF_RICH_SENSORS: DEFAULT_RICH_SENSORS,
+                CONF_RESET_DISPLAY: DEFAULT_RESET_DISPLAY,
             },
         )
 
 
 class CodexRatesOptionsFlow(config_entries.OptionsFlow):
-    """Options flow for poll interval and rich sensors."""
+    """Options flow for poll interval, rich sensors, and reset display."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow with config entry reference."""
@@ -448,6 +453,12 @@ class CodexRatesOptionsFlow(config_entries.OptionsFlow):
                         CONF_RICH_SENSORS,
                         default=entry.options.get(CONF_RICH_SENSORS, DEFAULT_RICH_SENSORS),
                     ): bool,
+                    vol.Required(
+                        CONF_RESET_DISPLAY,
+                        default=entry.options.get(
+                            CONF_RESET_DISPLAY, DEFAULT_RESET_DISPLAY
+                        ),
+                    ): vol.In(RESET_DISPLAY_OPTIONS),
                 }
             ),
         )

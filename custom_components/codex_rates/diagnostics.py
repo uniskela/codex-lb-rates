@@ -44,13 +44,19 @@ async def async_get_config_entry_diagnostics(
                     "remaining_5h": account.remaining_5h,
                     "remaining_weekly": account.remaining_weekly,
                     "remaining_monthly": account.remaining_monthly,
+                    "remaining_spark_5h": account.remaining_spark_5h,
+                    "remaining_spark_weekly": account.remaining_spark_weekly,
                     "reset_credits": account.reset_credits,
                     "plan_type": account.plan_type,
                 }
             )
     return {
         "entry": async_redact_data(
-            {"title": entry.title, "data": dict(entry.data), "options": dict(entry.options)},
+            {
+                "title": entry.title,
+                "data": dict(entry.data),
+                "options": dict(entry.options),
+            },
             TO_REDACT,
         ),
         "accounts": accounts,
@@ -60,6 +66,8 @@ async def async_get_config_entry_diagnostics(
             "remaining_5h_mean": snapshot.pool.remaining_5h.mean,
             "remaining_weekly_mean": snapshot.pool.remaining_weekly.mean,
             "remaining_monthly_mean": snapshot.pool.remaining_monthly.mean,
+            "remaining_spark_5h_mean": snapshot.pool.remaining_spark_5h.mean,
+            "remaining_spark_weekly_mean": snapshot.pool.remaining_spark_weekly.mean,
             "account_count": snapshot.pool.account_count,
             "active_count": snapshot.pool.active_count,
         },
