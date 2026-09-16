@@ -85,15 +85,17 @@ entities:
 
 Current blueprint: **Codex-LB Rates quota alerts v2.0.0**. The blueprint version is independent of the integration version and is shown in the blueprint name/description so an older imported copy is easy to identify.
 
-The blueprint alerts on **low**, **exceeded**, and **refreshed** remaining-% levels across one or more pool/account sensors. It is event-driven: selected sensors are checked when their percentage state changes, plus once when Home Assistant starts. There is no five-minute polling loop. A **Text helper** stores compact alert-state tokens so repeated updates do not spam you.
+The blueprint alerts on **low**, **exceeded**, and **refreshed** remaining-% levels across one or more pool/account sensors. It is event-driven: selected sensors are checked when their percentage state changes, all selected sensors are checked once when Home Assistant starts or automations reload, and there is no five-minute polling loop. Thresholds are evaluated inside the automation rather than using threshold-only triggers, which preserves the blueprint's exact ≤/≥ and hysteresis behaviour.
+
+[![Open your Home Assistant instance and import the Codex-LB Rates quota alert blueprint.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Funiskela%2Fcodex-lb-rates%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fcodex_rates%2Fquota_warning.yaml)
 
 1. Create a **Text** helper: **Settings → Devices & services → Helpers → Create helper → Text**, name it, set max length **255**, and leave its initial value **blank**.
-2. Copy [`blueprints/automation/codex_rates/quota_warning.yaml`](blueprints/automation/codex_rates/quota_warning.yaml) into `config/blueprints/automation/codex_rates/`, or import that GitHub file as a blueprint.
+2. Click the import badge above, **or** copy [`blueprints/automation/codex_rates/quota_warning.yaml`](blueprints/automation/codex_rates/quota_warning.yaml) into `config/blueprints/automation/codex_rates/`.
 3. **Create automation → Use blueprint**, choose remaining-% sensors, that Text helper, alert levels, and optional Companion phones.
 
 Version 2 can initialize a new helper that reports `unknown`, migrates the old full-entity alert tokens to compact stable tokens, and sends phone notifications through Home Assistant notify entities instead of guessing a `notify.mobile_app_*` action from the device display name.
 
-If you imported an earlier copy, use **Settings → Automations & scenes → Blueprints → ⋮ → Re-import blueprint** to refresh it from its saved source URL. Import from `main` if you want re-imports to follow the current blueprint; use a release-tag URL if you intentionally want to stay pinned.
+If you imported an earlier copy, use **Settings → Automations & scenes → Blueprints → ⋮ → Re-import blueprint** to refresh it from its saved source URL. The one-click badge above follows `main`, so re-importing picks up the current blueprint; use a release-tag URL instead if you intentionally want to stay pinned.
 
 Works for pool gauges and per-account remaining sensors. Sensors are **remaining**, not used — low threshold 20 means warn when ≤20% is left (and above the exceeded band). Full setup, migration notes, blueprint changelog, and update instructions: [docs/automations.md](docs/automations.md).
 
