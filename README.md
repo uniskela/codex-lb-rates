@@ -34,7 +34,7 @@ Home Assistant integration for **Codex 5-hour** and **weekly** quota remaining�
 You get:
 
 - Per-account sensors: 5h / weekly / monthly remaining %, reset sensors as `Xd XXh` countdowns by default (or absolute local dates via **Configure** → Reset sensor display), with the exact ISO timestamp in `resets_at`, **reset credits**, status
-- Optional rich sensors: plan, credits balance, last refresh
+- Optional rich sensors: plan type, credits balance, last refresh
 - Pool device: capacity-weighted remaining % for 5h, weekly, and monthly across all accounts, including exhausted accounts at 0%. Weights come from Codex-LB’s `capacityCreditsPrimary`, `capacityCreditsSecondary`, and `capacityCreditsMonthly`, so account plans contribute in proportion to their quota capacity.
 - Stale account devices from older identifier formats are pruned automatically after upgrade/reload
 
@@ -83,15 +83,21 @@ entities:
 
 ## Quota alerts
 
-Ship a Home Assistant automation blueprint that alerts on **low**, **exceeded**, and **refreshed** remaining-% levels across one or more pool/account sensors. A **Text helper** is the automation’s memory (which alerts already fired) so you are not spammed. Can notify the HA UI and/or Companion phones without a custom action.
+Current blueprint: **Codex-LB Rates quota alerts v2.0.0**. The blueprint version is independent of the integration version and is shown in the blueprint name/description so an older imported copy is easy to identify.
 
-1. Create a **Text** helper: **Settings → Devices & services → Helpers → Create helper → Text**, name it, set max length **255**, leave initial value **blank**.
-2. Copy [`blueprints/automation/codex_rates/quota_warning.yaml`](blueprints/automation/codex_rates/quota_warning.yaml) into `config/blueprints/automation/codex_rates/` (or import the raw URL from your release).
-3. **Create automation → Use blueprint**, pick remaining-% sensors, that Text helper, alert levels, and optional phones.
+The blueprint alerts on **low**, **exceeded**, and **refreshed** remaining-% levels across one or more pool/account sensors. It is event-driven: selected sensors are checked when their percentage state changes, all selected sensors are checked once when Home Assistant starts or automations reload, and there is no five-minute polling loop. Thresholds are evaluated inside the automation rather than using threshold-only triggers, which preserves the blueprint's exact ≤/≥ and hysteresis behaviour.
 
-You never need to type into the helper yourself — the blueprint fills it with tokens like `sensor.foo::low`. Full walkthrough: [docs/automations.md](docs/automations.md).
+[![Open your Home Assistant instance and import the Codex-LB Rates quota alert blueprint.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Funiskela%2Fcodex-lb-rates%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fcodex_rates%2Fquota_warning.yaml)
 
-Works for pool gauges and per-account 5h / weekly remaining sensors. Sensors are **remaining**, not used — low threshold 20 means warn when ≤20% is left (and above the exceeded band).
+1. Create a **Text** helper: **Settings → Devices & services → Helpers → Create helper → Text**, name it, set max length **255**, and leave its initial value **blank**.
+2. Click the import badge above, **or** copy [`blueprints/automation/codex_rates/quota_warning.yaml`](blueprints/automation/codex_rates/quota_warning.yaml) into `config/blueprints/automation/codex_rates/`.
+3. **Create automation → Use blueprint**, choose remaining-% sensors, that Text helper, alert levels, and optional Companion phones.
+
+Version 2 can initialize a new helper that reports `unknown`, migrates the old full-entity alert tokens to compact stable tokens, and sends phone notifications through Home Assistant notify entities instead of guessing a `notify.mobile_app_*` action from the device display name.
+
+If you imported an earlier copy, use **Settings → Automations & scenes → Blueprints → ⋮ → Re-import blueprint** to refresh it from its saved source URL. The one-click badge above follows `main`, so re-importing picks up the current blueprint; use a release-tag URL instead if you intentionally want to stay pinned.
+
+Works for pool gauges and per-account remaining sensors. Sensors are **remaining**, not used — low threshold 20 means warn when ≤20% is left (and above the exceeded band). Full setup, migration notes, blueprint changelog, and update instructions: [docs/automations.md](docs/automations.md).
 
 ## Security
 

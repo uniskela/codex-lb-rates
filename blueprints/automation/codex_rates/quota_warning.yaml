@@ -1,12 +1,16 @@
 blueprint:
-  name: Codex-LB Rates quota alerts
+  name: Codex-LB Rates quota alerts (v2.0.0)
   description: >-
-    Alert on remaining-% sensors for low quota, quota exceeded, and quota
-    refreshed. Select one or more sensors (pool and/or accounts). Uses one
-    Text helper to remember which alerts already fired so you are not spammed.
+    Blueprint version: 2.0.0. Alert on remaining-% sensors for low quota,
+    quota exceeded, and quota refreshed. Select one or more sensors (pool
+    and/or accounts). Uses one Text helper to remember which alerts already
+    fired so you are not spammed. Runs when a selected percentage state
+    changes, when Home Assistant starts, and after automations reload; there is
+    no periodic polling.
   domain: automation
+  author: uniskela
   homeassistant:
-    min_version: "2024.8.0"
+    min_version: "2026.5.0"
   input:
     sensors_section:
       name: Sensors and helper
@@ -29,7 +33,8 @@ blueprint:
             **Required.** Create a **Text** helper first (Settings → Devices &
             services → Helpers), set **Maximum length** to **255**, leave the
             initial value empty, then select it here. One helper per
-            automation. Replaces the old Toggle helper.
+            automation. The blueprint initializes an empty/unknown helper and
+            stores compact alert-state tokens automatically.
           selector:
             entity:
               filter:
@@ -123,7 +128,8 @@ blueprint:
       description: >-
         HA UI and Companion phone alerts. Leave phones empty to skip mobile
         notifications. Titles/messages support templates using remaining_entity,
-        remaining, friendly_name, and event.
+        remaining, friendly_name, and event. Companion phones are targeted via
+        their notify entities instead of guessed notify.mobile_app service names.
       collapsed: true
       input:
         enable_persistent:
@@ -134,8 +140,8 @@ blueprint:
         notify_devices:
           name: Phones to notify
           description: >-
-            Optional Companion (`mobile_app`) devices. Uses each device's
-            `notify.mobile_app_*` service from the Companion device name.
+            Optional Companion (`mobile_app`) devices. Home Assistant resolves
+            each selected device to its notify entity using `notify.send_message`.
           default: []
           selector:
             device:
@@ -149,6 +155,10 @@ blueprint:
             text:
         subtitle_low:
           name: Low alert subtitle
+          description: >-
+            Kept for compatibility and available to additional actions as
+            `notify_subtitle`. Standard notify-entity phone delivery uses title
+            and message only.
           default: "Remaining quota is running low"
           selector:
             text:
@@ -168,6 +178,10 @@ blueprint:
             text:
         subtitle_exceeded:
           name: Exceeded alert subtitle
+          description: >-
+            Kept for compatibility and available to additional actions as
+            `notify_subtitle`. Standard notify-entity phone delivery uses title
+            and message only.
           default: "No remaining quota left"
           selector:
             text:
@@ -187,6 +201,10 @@ blueprint:
             text:
         subtitle_refreshed:
           name: Refreshed alert subtitle
+          description: >-
+            Kept for compatibility and available to additional actions as
+            `notify_subtitle`. Standard notify-entity phone delivery uses title
+            and message only.
           default: "Quota has been restored"
           selector:
             text:
@@ -208,11 +226,15 @@ blueprint:
 
 triggers:
   - trigger: state
+    id: percentage_changed
     entity_id: !input remaining_sensors
+    to: null
   - trigger: homeassistant
+    id: home_assistant_started
     event: start
-  - trigger: time_pattern
-    minutes: "/5"
+  - trigger: event
+    id: automations_reloaded
+    event_type: automation_reloaded
 
 variables:
   state_helper: !input alert_state
@@ -228,27 +250,88 @@ variables:
   enable_persistent: !input enable_persistent
   notify_devices: !input notify_devices
   sensors: !input remaining_sensors
+  sensors_to_check: >-
+    {{ [trigger.entity_id]
+       if trigger is defined and trigger.platform == 'state'
+       else sensors }}
 
 actions:
-  - condition: template
-    value_template: >-
-      {{ states(state_helper) not in ['unknown', 'unavailable']
-         and sensors | count > 0 }}
-  - repeat:
-      for_each: !input remaining_sensors
+  # The helper selector guarantees an input_text when the automation is saved.
+  # Still validate it in case the helper was later deleted or disabled. A real
+  # helper in the normal initial `unknown` state is allowed and initialized by
+  # the next action.
+  - alias: Validate alert-state helper
+    if:
+      - condition: template
+        value_template: >-
+          {{ sensors | count == 0
+             or state_helper not in (states.input_text | map(attribute='entity_id') | list)
+             or states(state_helper) == 'unavailable' }}
+    then:
+      - stop: >-
+          Alert state helper is missing or unavailable, or no remaining
+          percentage sensors are configured.
+        error: true
+
+  - alias: Initialize new alert-state helper
+    if:
+      - condition: template
+        value_template: "{{ states(state_helper) == 'unknown' }}"
+    then:
+      - action: input_text.set_value
+        target:
+          entity_id: !input alert_state
+        data:
+          value: ""
+
+  # v2 compact state migration. Legacy values used the complete entity_id for
+  # every flag and could overflow input_text's 255-character maximum. Preserve
+  # any known v1 flags but rewrite them as an 8-hex stable entity hash + event.
+  - alias: Read alert-state tokens
+    variables:
+      state_source: >-
+        {% set raw = states(state_helper) %}
+        {{ '' if raw in ['unknown', 'unavailable', 'none'] else raw }}
+  - alias: Build compact alert-state tokens
+    variables:
+      state_compact: >-
+        {% set raw_tokens = state_source.split() %}
+        {% set ns = namespace(tokens=[]) %}
+        {% for entity in sensors %}
+          {% set key = sha1(entity)[:8] %}
+          {% for event_name, event_code in [('low', 'l'), ('exceeded', 'e'), ('refreshed', 'r')] %}
+            {% set compact = key ~ ':' ~ event_code %}
+            {% set legacy = entity ~ '::' ~ event_name %}
+            {% if compact in raw_tokens or legacy in raw_tokens %}
+              {% set ns.tokens = ns.tokens + [compact] %}
+            {% endif %}
+          {% endfor %}
+        {% endfor %}
+        {{ ns.tokens | unique | list | join(' ') }}
+  - alias: Migrate legacy alert-state tokens
+    if:
+      - condition: template
+        value_template: "{{ state_source != state_compact }}"
+    then:
+      - action: input_text.set_value
+        target:
+          entity_id: !input alert_state
+        data:
+          value: "{{ state_compact }}"
+
+  - alias: Evaluate selected quota sensors
+    repeat:
+      for_each: "{{ sensors_to_check }}"
       sequence:
         - variables:
             remaining_entity: "{{ repeat.item }}"
             remaining: "{{ states(repeat.item) | float(-1) }}"
             friendly_name: >-
               {{ state_attr(repeat.item, 'friendly_name') or repeat.item }}
-            state_raw: "{{ states(state_helper) }}"
-            token_low: "{{ repeat.item }}::low"
-            token_exceeded: "{{ repeat.item }}::exceeded"
-            token_refreshed: "{{ repeat.item }}::refreshed"
-            armed_low: "{{ token_low in state_raw.split() }}"
-            armed_exceeded: "{{ token_exceeded in state_raw.split() }}"
-            armed_refreshed: "{{ token_refreshed in state_raw.split() }}"
+            state_raw: >-
+              {% set raw = states(state_helper) %}
+              {{ '' if raw in ['unknown', 'unavailable', 'none'] else raw }}
+            token_key: "{{ sha1(repeat.item)[:8] }}"
             low_recover_at: >-
               {{ [100, low_threshold | float + low_hysteresis | float] | min }}
             exceed_recover_above: >-
@@ -257,8 +340,17 @@ actions:
               {{ is_number(states(repeat.item))
                  and 0 <= states(repeat.item) | float(-1) <= 100
                  and state_attr(repeat.item, 'unit_of_measurement') == '%' }}
-        - condition: template
+        - variables:
+            token_low: "{{ token_key }}:l"
+            token_exceeded: "{{ token_key }}:e"
+            token_refreshed: "{{ token_key }}:r"
+            armed_low: "{{ token_key ~ ':l' in state_raw.split() }}"
+            armed_exceeded: "{{ token_key ~ ':e' in state_raw.split() }}"
+            armed_refreshed: "{{ token_key ~ ':r' in state_raw.split() }}"
+        - alias: Validate quota sensor
+          condition: template
           value_template: "{{ sensor_ok }}"
+
         # --- Exceeded ---
         - if:
             - condition: template
@@ -270,12 +362,10 @@ actions:
             - variables:
                 event: exceeded
                 notify_subtitle: !input subtitle_exceeded
-                message_html: >-
-                  <b>{{ friendly_name }}</b> is at <b>{{ remaining }}%</b> remaining.<br>Quota exceeded (threshold {{ exceed_threshold }}%).
                 notification_id: "codex_rates_{{ remaining_entity | slugify }}_exceeded"
-                notification_tag: "codex_rates_{{ remaining_entity | slugify }}_exceeded"
                 state_after_arm: >-
-                  {{ (state_raw.split() + [token_exceeded]) | unique | list | join(' ') }}
+                  {{ (state_raw.split() + [token_exceeded])
+                     | unique | list | join(' ') }}
             - if:
                 - condition: template
                   value_template: "{{ enable_persistent }}"
@@ -285,40 +375,28 @@ actions:
                     title: !input title_exceeded
                     message: !input message_exceeded
                     notification_id: "{{ notification_id }}"
-            - repeat:
-                for_each: !input notify_devices
-                sequence:
-                  - variables:
-                      notify_target: >-
-                        {{
-                          "notify.mobile_app_" ~ (
-                            device_attr(repeat.item, "name") or ""
-                          ) | slugify
-                        }}
-                  - condition: template
-                    value_template: "{{ notify_target != 'notify.mobile_app_' }}"
-                  - action: "{{ notify_target }}"
-                    data:
-                      title: !input title_exceeded
-                      message: "{{ message_html }}"
-                      data:
-                        tag: "{{ notification_tag }}"
-                        group: codex_rates_quota
-                        color: "#D32F2F"
-                        notification_icon: mdi:gauge-empty
-                        importance: high
-                        channel: Codex-LB Rates
-                        subtitle: "{{ notify_subtitle }}"
-                        subject: "{{ notify_subtitle }}"
+            - if:
+                - condition: template
+                  value_template: "{{ notify_devices | count > 0 }}"
+              then:
+                - action: notify.send_message
+                  target:
+                    device_id: !input notify_devices
+                  data:
+                    title: !input title_exceeded
+                    message: !input message_exceeded
             - action: input_text.set_value
               target:
                 entity_id: !input alert_state
               data:
                 value: "{{ state_after_arm }}"
             - sequence: !input extra_actions
+
         # --- Low (band above exceeded) ---
         - variables:
-            state_raw: "{{ states(state_helper) }}"
+            state_raw: >-
+              {% set raw = states(state_helper) %}
+              {{ '' if raw in ['unknown', 'unavailable', 'none'] else raw }}
             armed_low: "{{ token_low in states(state_helper).split() }}"
             armed_exceeded: "{{ token_exceeded in states(state_helper).split() }}"
             armed_refreshed: "{{ token_refreshed in states(state_helper).split() }}"
@@ -336,12 +414,10 @@ actions:
             - variables:
                 event: low
                 notify_subtitle: !input subtitle_low
-                message_html: >-
-                  <b>{{ friendly_name }}</b> is at <b>{{ remaining }}%</b> remaining.<br>Threshold: {{ low_threshold }}%
                 notification_id: "codex_rates_{{ remaining_entity | slugify }}_low"
-                notification_tag: "codex_rates_{{ remaining_entity | slugify }}_low"
                 state_after_arm: >-
-                  {{ (states(state_helper).split() + [token_low]) | unique | list | join(' ') }}
+                  {{ (state_raw.split() + [token_low])
+                     | unique | list | join(' ') }}
             - if:
                 - condition: template
                   value_template: "{{ enable_persistent }}"
@@ -351,40 +427,28 @@ actions:
                     title: !input title_low
                     message: !input message_low
                     notification_id: "{{ notification_id }}"
-            - repeat:
-                for_each: !input notify_devices
-                sequence:
-                  - variables:
-                      notify_target: >-
-                        {{
-                          "notify.mobile_app_" ~ (
-                            device_attr(repeat.item, "name") or ""
-                          ) | slugify
-                        }}
-                  - condition: template
-                    value_template: "{{ notify_target != 'notify.mobile_app_' }}"
-                  - action: "{{ notify_target }}"
-                    data:
-                      title: !input title_low
-                      message: "{{ message_html }}"
-                      data:
-                        tag: "{{ notification_tag }}"
-                        group: codex_rates_quota
-                        color: "#C45C26"
-                        notification_icon: mdi:gauge-low
-                        importance: high
-                        channel: Codex-LB Rates
-                        subtitle: "{{ notify_subtitle }}"
-                        subject: "{{ notify_subtitle }}"
+            - if:
+                - condition: template
+                  value_template: "{{ notify_devices | count > 0 }}"
+              then:
+                - action: notify.send_message
+                  target:
+                    device_id: !input notify_devices
+                  data:
+                    title: !input title_low
+                    message: !input message_low
             - action: input_text.set_value
               target:
                 entity_id: !input alert_state
               data:
                 value: "{{ state_after_arm }}"
             - sequence: !input extra_actions
+
         # --- Refreshed ---
         - variables:
-            state_raw: "{{ states(state_helper) }}"
+            state_raw: >-
+              {% set raw = states(state_helper) %}
+              {{ '' if raw in ['unknown', 'unavailable', 'none'] else raw }}
             armed_low: "{{ token_low in states(state_helper).split() }}"
             armed_exceeded: "{{ token_exceeded in states(state_helper).split() }}"
             armed_refreshed: "{{ token_refreshed in states(state_helper).split() }}"
@@ -399,15 +463,11 @@ actions:
             - variables:
                 event: refreshed
                 notify_subtitle: !input subtitle_refreshed
-                message_html: >-
-                  <b>{{ friendly_name }}</b> is at <b>{{ remaining }}%</b> remaining.<br>Quota refreshed (threshold {{ refresh_threshold }}%).
                 notification_id: "codex_rates_{{ remaining_entity | slugify }}_refreshed"
-                notification_tag: "codex_rates_{{ remaining_entity | slugify }}_refreshed"
-                # Arm refreshed and clear low/exceeded flags for this sensor.
                 state_after_arm: >-
                   {{
                     (
-                      states(state_helper).split()
+                      state_raw.split()
                       | reject('eq', token_low)
                       | reject('eq', token_exceeded)
                       | list
@@ -430,50 +490,28 @@ actions:
                     title: !input title_refreshed
                     message: !input message_refreshed
                     notification_id: "{{ notification_id }}"
-            - repeat:
-                for_each: !input notify_devices
-                sequence:
-                  - variables:
-                      notify_target: >-
-                        {{
-                          "notify.mobile_app_" ~ (
-                            device_attr(repeat.item, "name") or ""
-                          ) | slugify
-                        }}
-                  - condition: template
-                    value_template: "{{ notify_target != 'notify.mobile_app_' }}"
-                  - action: "{{ notify_target }}"
-                    data:
-                      message: clear_notification
-                      data:
-                        tag: "codex_rates_{{ remaining_entity | slugify }}_low"
-                  - action: "{{ notify_target }}"
-                    data:
-                      message: clear_notification
-                      data:
-                        tag: "codex_rates_{{ remaining_entity | slugify }}_exceeded"
-                  - action: "{{ notify_target }}"
-                    data:
-                      title: !input title_refreshed
-                      message: "{{ message_html }}"
-                      data:
-                        tag: "{{ notification_tag }}"
-                        group: codex_rates_quota
-                        color: "#2E7D32"
-                        notification_icon: mdi:gauge-full
-                        importance: default
-                        channel: Codex-LB Rates
-                        subtitle: "{{ notify_subtitle }}"
-                        subject: "{{ notify_subtitle }}"
+            - if:
+                - condition: template
+                  value_template: "{{ notify_devices | count > 0 }}"
+              then:
+                - action: notify.send_message
+                  target:
+                    device_id: !input notify_devices
+                  data:
+                    title: !input title_refreshed
+                    message: !input message_refreshed
             - action: input_text.set_value
               target:
                 entity_id: !input alert_state
               data:
                 value: "{{ state_after_arm }}"
             - sequence: !input extra_actions
+
         # --- Rearm / clear recovered flags ---
         - variables:
-            state_raw: "{{ states(state_helper) }}"
+            state_raw: >-
+              {% set raw = states(state_helper) %}
+              {{ '' if raw in ['unknown', 'unavailable', 'none'] else raw }}
             armed_low: "{{ token_low in states(state_helper).split() }}"
             armed_exceeded: "{{ token_exceeded in states(state_helper).split() }}"
             armed_refreshed: "{{ token_refreshed in states(state_helper).split() }}"
@@ -499,31 +537,18 @@ actions:
                 - action: persistent_notification.dismiss
                   data:
                     notification_id: "codex_rates_{{ remaining_entity | slugify }}_low"
-            - repeat:
-                for_each: !input notify_devices
-                sequence:
-                  - variables:
-                      notify_target: >-
-                        {{
-                          "notify.mobile_app_" ~ (
-                            device_attr(repeat.item, "name") or ""
-                          ) | slugify
-                        }}
-                  - condition: template
-                    value_template: "{{ notify_target != 'notify.mobile_app_' }}"
-                  - action: "{{ notify_target }}"
-                    data:
-                      message: clear_notification
-                      data:
-                        tag: "codex_rates_{{ remaining_entity | slugify }}_low"
             - action: input_text.set_value
               target:
                 entity_id: !input alert_state
               data:
                 value: >-
-                  {{ states(state_helper).split()
+                  {{ state_raw.split()
                      | reject('eq', token_low)
                      | list | join(' ') }}
+        - variables:
+            state_raw: >-
+              {% set raw = states(state_helper) %}
+              {{ '' if raw in ['unknown', 'unavailable', 'none'] else raw }}
         - if:
             - condition: template
               value_template: "{{ should_clear_exceeded }}"
@@ -535,31 +560,18 @@ actions:
                 - action: persistent_notification.dismiss
                   data:
                     notification_id: "codex_rates_{{ remaining_entity | slugify }}_exceeded"
-            - repeat:
-                for_each: !input notify_devices
-                sequence:
-                  - variables:
-                      notify_target: >-
-                        {{
-                          "notify.mobile_app_" ~ (
-                            device_attr(repeat.item, "name") or ""
-                          ) | slugify
-                        }}
-                  - condition: template
-                    value_template: "{{ notify_target != 'notify.mobile_app_' }}"
-                  - action: "{{ notify_target }}"
-                    data:
-                      message: clear_notification
-                      data:
-                        tag: "codex_rates_{{ remaining_entity | slugify }}_exceeded"
             - action: input_text.set_value
               target:
                 entity_id: !input alert_state
               data:
                 value: >-
-                  {{ states(state_helper).split()
+                  {{ state_raw.split()
                      | reject('eq', token_exceeded)
                      | list | join(' ') }}
+        - variables:
+            state_raw: >-
+              {% set raw = states(state_helper) %}
+              {{ '' if raw in ['unknown', 'unavailable', 'none'] else raw }}
         - if:
             - condition: template
               value_template: "{{ should_clear_refreshed }}"
@@ -571,29 +583,12 @@ actions:
                 - action: persistent_notification.dismiss
                   data:
                     notification_id: "codex_rates_{{ remaining_entity | slugify }}_refreshed"
-            - repeat:
-                for_each: !input notify_devices
-                sequence:
-                  - variables:
-                      notify_target: >-
-                        {{
-                          "notify.mobile_app_" ~ (
-                            device_attr(repeat.item, "name") or ""
-                          ) | slugify
-                        }}
-                  - condition: template
-                    value_template: "{{ notify_target != 'notify.mobile_app_' }}"
-                  - action: "{{ notify_target }}"
-                    data:
-                      message: clear_notification
-                      data:
-                        tag: "codex_rates_{{ remaining_entity | slugify }}_refreshed"
             - action: input_text.set_value
               target:
                 entity_id: !input alert_state
               data:
                 value: >-
-                  {{ states(state_helper).split()
+                  {{ state_raw.split()
                      | reject('eq', token_refreshed)
                      | list | join(' ') }}
 
