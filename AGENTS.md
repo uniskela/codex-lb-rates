@@ -74,6 +74,23 @@ HACS reads `custom_components/codex_rates/manifest.json` → `version`. That fie
 
 Brand images live in `custom_components/codex_rates/brand/` (`icon.png`, `logo.png`, dark/@2x variants). Home Assistant Core (2026.3+) serves them via `/api/brands/integration/codex_rates/...`. **HACS update/download cards may still show “icon not available”** until HACS uses that local brands proxy — that is a HACS frontend limitation, not a missing file in this repo. Regenerate assets with `python scripts/generate_brand_icon.py` (requires Pillow).
 
+## Blueprint versioning
+
+`blueprints/automation/codex_rates/quota_warning.yaml` has its own SemVer. The blueprint version is **independent** of the integration version managed by Release Please: changing the blueprint does not by itself justify editing `version.txt` or `custom_components/codex_rates/manifest.json`.
+
+Treat the version declared in the blueprint description/name as the canonical blueprint version. When a PR changes blueprint behaviour, inputs, compatibility, notification delivery, migration/state format, or other user-visible semantics:
+
+1. Decide the blueprint SemVer bump: patch for compatible fixes, minor for backward-compatible capabilities, major for breaking/incompatible behaviour or inputs.
+2. Update the version in both the blueprint name and `Blueprint version:` description text.
+3. Update the current-version/setup wording in `README.md`.
+4. Update `docs/automations.md`, including its blueprint version history and any migration/update instructions.
+5. Update or add assertions in `tests/test_quota_blueprint.py`. Its version-consistency check must remain green so README/release docs cannot silently drift from the blueprint.
+6. Run the full Validate workflow (`pytest`, Hassfest, HACS validation) before treating the PR as ready.
+
+Do not add a non-standard Home Assistant `blueprint.version` key. Home Assistant does not currently define one; the visible name/description plus the repository tests are the version contract used here.
+
+Documentation-only changes that do not alter blueprint behaviour do not need a blueprint SemVer bump, but they must not contradict the canonical version or current behaviour.
+
 ## Merging and CODEOWNERS
 
 - [`.github/CODEOWNERS`](.github/CODEOWNERS) assigns **@uniskela** as owner of the whole tree.
