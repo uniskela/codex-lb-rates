@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.2](https://github.com/uniskela/codex-lb-rates/compare/v0.6.1...v0.6.2) (2026-09-16)
+
+
+### Bug Fixes
+
+* label quota windows from reported duration ([fe8d080](https://github.com/uniskela/codex-lb-rates/commit/fe8d080143675d08d2f5da2d34f353bedc99dcfd))
+* label quota windows from reported duration ([a3468dc](https://github.com/uniskela/codex-lb-rates/commit/a3468dcb95e422a9fe8eee6b3db24ef637cd0973))
+* preserve legacy labels without window metadata ([4a759e4](https://github.com/uniskela/codex-lb-rates/commit/4a759e4062f491028288991ca27165dd32d6256c))
+
 ## [0.6.1](https://github.com/uniskela/codex-lb-rates/compare/v0.6.0...v0.6.1) (2026-09-16)
 
 
