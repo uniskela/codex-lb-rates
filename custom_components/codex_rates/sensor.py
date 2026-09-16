@@ -149,15 +149,23 @@ def _account_window_name(account: AccountQuota, key: str) -> str | None:
     attr = _WINDOW_MINUTES_ATTRS.get(key)
     if attr is None:
         return None
-    label = _window_duration_label(getattr(account, attr)) or _fallback_window_label(key)
+    label = _window_duration_label(getattr(account, attr))
+    if label is None:
+        return None
     prefix = "Spark " if "spark" in key else ""
     suffix = "resets" if key.startswith("reset_") else "remaining"
     return f"{prefix}{label} {suffix}"
 
 
-def _pool_window_name(key: str, window_minutes: int | None) -> str:
-    """Build a pool sensor name while avoiding a false fixed-window label."""
-    label = _window_duration_label(window_minutes) or _fallback_window_label(key)
+def _pool_window_name(
+    key: str, window: WindowAggregate, fallback_name: str
+) -> str:
+    """Build a pool name from a uniform duration, or generic name for mixed windows."""
+    label = _window_duration_label(window.window_minutes)
+    if label is None:
+        if not window.by_minutes:
+            return fallback_name
+        label = _fallback_window_label(key)
     if label != "5h":
         label = label.lower()
     prefix = "Spark " if "spark" in key else ""
@@ -796,7 +804,7 @@ class CodexPoolSensor(CoordinatorEntity[CodexRatesCoordinator], SensorEntity):
         window = self._window()
         if window is None:
             return self._fallback_name
-        return _pool_window_name(self._key, window.window_minutes)
+        return _pool_window_name(self._key, window, self._fallback_name)
 
     @property
     def native_value(self) -> float | None:
