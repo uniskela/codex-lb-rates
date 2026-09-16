@@ -5,7 +5,8 @@ blueprint:
     quota exceeded, and quota refreshed. Select one or more sensors (pool
     and/or accounts). Uses one Text helper to remember which alerts already
     fired so you are not spammed. Runs when a selected percentage state
-    changes and once when Home Assistant starts; there is no periodic polling.
+    changes, when Home Assistant starts, and after automations reload; there is
+    no periodic polling.
   domain: automation
   author: uniskela
   homeassistant:
@@ -225,10 +226,15 @@ blueprint:
 
 triggers:
   - trigger: state
+    id: percentage_changed
     entity_id: !input remaining_sensors
     to: null
   - trigger: homeassistant
+    id: home_assistant_started
     event: start
+  - trigger: event
+    id: automations_reloaded
+    event_type: automation_reloaded
 
 variables:
   state_helper: !input alert_state
@@ -251,15 +257,24 @@ variables:
 
 actions:
   # The helper selector guarantees an input_text when the automation is saved.
-  # Still check that it exists and is currently available in case it was later
-  # deleted or disabled. An existing helper in the normal initial `unknown`
-  # state is deliberately allowed and initialized below.
-  - condition: template
-    value_template: >-
-      {{ sensors | count > 0
-         and state_helper in (states.input_text | map(attribute='entity_id') | list)
-         and states(state_helper) != 'unavailable' }}
-  - if:
+  # Still validate it in case the helper was later deleted or disabled. A real
+  # helper in the normal initial `unknown` state is allowed and initialized by
+  # the next action.
+  - alias: Validate alert-state helper
+    if:
+      - condition: template
+        value_template: >-
+          {{ sensors | count == 0
+             or state_helper not in (states.input_text | map(attribute='entity_id') | list)
+             or states(state_helper) == 'unavailable' }}
+    then:
+      - stop: >-
+          Alert state helper is missing or unavailable, or no remaining
+          percentage sensors are configured.
+        error: true
+
+  - alias: Initialize new alert-state helper
+    if:
       - condition: template
         value_template: "{{ states(state_helper) == 'unknown' }}"
     then:
@@ -272,11 +287,13 @@ actions:
   # v2 compact state migration. Legacy values used the complete entity_id for
   # every flag and could overflow input_text's 255-character maximum. Preserve
   # any known v1 flags but rewrite them as an 8-hex stable entity hash + event.
-  - variables:
+  - alias: Read alert-state tokens
+    variables:
       state_source: >-
         {% set raw = states(state_helper) %}
         {{ '' if raw in ['unknown', 'unavailable', 'none'] else raw }}
-  - variables:
+  - alias: Build compact alert-state tokens
+    variables:
       state_compact: >-
         {% set raw_tokens = state_source.split() %}
         {% set ns = namespace(tokens=[]) %}
@@ -291,7 +308,8 @@ actions:
           {% endfor %}
         {% endfor %}
         {{ ns.tokens | unique | list | join(' ') }}
-  - if:
+  - alias: Migrate legacy alert-state tokens
+    if:
       - condition: template
         value_template: "{{ state_source != state_compact }}"
     then:
@@ -301,7 +319,8 @@ actions:
         data:
           value: "{{ state_compact }}"
 
-  - repeat:
+  - alias: Evaluate selected quota sensors
+    repeat:
       for_each: "{{ sensors_to_check }}"
       sequence:
         - variables:
@@ -328,7 +347,8 @@ actions:
             armed_low: "{{ token_key ~ ':l' in state_raw.split() }}"
             armed_exceeded: "{{ token_key ~ ':e' in state_raw.split() }}"
             armed_refreshed: "{{ token_key ~ ':r' in state_raw.split() }}"
-        - condition: template
+        - alias: Validate quota sensor
+          condition: template
           value_template: "{{ sensor_ok }}"
 
         # --- Exceeded ---
