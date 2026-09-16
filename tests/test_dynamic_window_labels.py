@@ -64,6 +64,18 @@ def test_five_hour_labels_are_preserved_when_server_reports_300_minutes() -> Non
     assert getattr(sensor, "name", None) == "5h remaining"
 
 
+def test_account_label_keeps_legacy_name_when_duration_is_missing() -> None:
+    account = AccountQuota(account_id="acc", remaining_5h=50)
+    coordinator = SimpleNamespace(data=ProviderSnapshot(accounts=[account]))
+    entry = SimpleNamespace(entry_id="entry", options={})
+
+    sensor = CodexAccountSensor(
+        coordinator, entry, "acc", _description("remaining_5h")
+    )
+
+    assert getattr(sensor, "name", None) == "5h remaining"
+
+
 def test_pool_label_uses_uniform_reported_window_duration() -> None:
     account = AccountQuota(
         account_id="acc",
@@ -91,3 +103,63 @@ def test_pool_label_uses_uniform_reported_window_duration() -> None:
 
     assert getattr(sensor, "name", None) == "All accounts daily remaining"
     assert sensor.unique_id == "entry_pool_remaining_5h"
+
+
+def test_pool_label_is_generic_when_accounts_report_mixed_durations() -> None:
+    accounts = [
+        AccountQuota(
+            account_id="five",
+            status="active",
+            remaining_5h=80,
+            window_minutes_5h=5 * 60,
+        ),
+        AccountQuota(
+            account_id="daily",
+            status="active",
+            remaining_5h=60,
+            window_minutes_5h=24 * 60,
+        ),
+    ]
+    snapshot = ProviderSnapshot(
+        accounts=accounts,
+        pool=compute_pool_aggregate(accounts),
+    )
+    coordinator = SimpleNamespace(data=snapshot)
+    entry = SimpleNamespace(
+        entry_id="entry",
+        data={CONF_MODE: MODE_CODEX_LB},
+        options={},
+    )
+    sensor = CodexPoolSensor(
+        coordinator,
+        entry,
+        "remaining_5h",
+        "All accounts 5h remaining",
+    )
+
+    assert snapshot.pool is not None
+    assert snapshot.pool.remaining_5h.window_minutes is None
+    assert snapshot.pool.remaining_5h.by_minutes
+    assert getattr(sensor, "name", None) == "All accounts primary remaining"
+
+
+def test_pool_label_keeps_legacy_name_when_duration_is_unknown() -> None:
+    account = AccountQuota(account_id="acc", status="active", remaining_5h=84)
+    snapshot = ProviderSnapshot(
+        accounts=[account],
+        pool=compute_pool_aggregate([account]),
+    )
+    coordinator = SimpleNamespace(data=snapshot)
+    entry = SimpleNamespace(
+        entry_id="entry",
+        data={CONF_MODE: MODE_CODEX_LB},
+        options={},
+    )
+    sensor = CodexPoolSensor(
+        coordinator,
+        entry,
+        "remaining_5h",
+        "All accounts 5h remaining",
+    )
+
+    assert getattr(sensor, "name", None) == "All accounts 5h remaining"
