@@ -39,9 +39,9 @@ def test_account_window_labels_follow_server_duration_without_changing_unique_id
         coordinator, entry, "acc", _description("remaining_weekly")
     )
 
-    assert primary_remaining.name == "Daily remaining"
-    assert primary_reset.name == "Daily resets"
-    assert secondary_remaining.name == "Weekly remaining"
+    assert getattr(primary_remaining, "name", None) == "Daily remaining"
+    assert getattr(primary_reset, "name", None) == "Daily resets"
+    assert getattr(secondary_remaining, "name", None) == "Weekly remaining"
 
     # Keep the old identity keys so dashboards/automations survive the display-name fix.
     assert primary_remaining.unique_id == "entry_acc_remaining_5h"
@@ -61,7 +61,7 @@ def test_five_hour_labels_are_preserved_when_server_reports_300_minutes() -> Non
         coordinator, entry, "acc", _description("remaining_5h")
     )
 
-    assert sensor.name == "5h remaining"
+    assert getattr(sensor, "name", None) == "5h remaining"
 
 
 def test_pool_label_uses_uniform_reported_window_duration() -> None:
@@ -89,5 +89,5 @@ def test_pool_label_uses_uniform_reported_window_duration() -> None:
         "All accounts 5h remaining",
     )
 
-    assert sensor.name == "All accounts daily remaining"
+    assert getattr(sensor, "name", None) == "All accounts daily remaining"
     assert sensor.unique_id == "entry_pool_remaining_5h"
