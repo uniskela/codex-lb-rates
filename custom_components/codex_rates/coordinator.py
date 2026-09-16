@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 
 import aiohttp
@@ -51,11 +51,13 @@ class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
             CONF_POLL_INTERVAL,
             entry.data.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
         )
+        self.poll_interval_seconds = max(30, int(interval))
+        self.last_successful_poll_at: datetime | None = None
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(seconds=max(30, int(interval))),
+            update_interval=timedelta(seconds=self.poll_interval_seconds),
             config_entry=entry,
         )
         self.entry = entry
@@ -118,7 +120,9 @@ class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
         if self._provider is None:
             self._provider = self._build_provider()
         try:
-            return await self._provider.async_fetch()
+            snapshot = await self._provider.async_fetch()
+            self.last_successful_poll_at = datetime.now(timezone.utc)
+            return snapshot
         except CodexRatesAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
         except CodexRatesApiError as err:
