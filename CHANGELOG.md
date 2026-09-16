@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.3](https://github.com/uniskela/codex-lb-rates/compare/v0.6.2...v0.6.3) (2026-09-16)
+
+
+### Bug Fixes
+
+* expose poll freshness and reset timing diagnostics ([ec99e75](https://github.com/uniskela/codex-lb-rates/commit/ec99e7518f8beb9cde9b12b2f83cd81661dd4954))
+* expose quota timing in diagnostics ([df7393d](https://github.com/uniskela/codex-lb-rates/commit/df7393d496c45bf001635a8463da815ac74b8715))
+* track successful provider poll freshness ([f0bcf1a](https://github.com/uniskela/codex-lb-rates/commit/f0bcf1a8527f5db8cef3a79830fb6f7ae276c7ad))
+
 ## [0.6.2](https://github.com/uniskela/codex-lb-rates/compare/v0.6.1...v0.6.2) (2026-09-16)
 
 
