@@ -2,7 +2,11 @@
 
 ## Quota alerts blueprint
 
-Notify once per sensor for **low quota**, **quota exceeded**, and **quota refreshed**, then rearm after recovery so you are not spammed. Select one or more remaining-% sensors (pool and/or individual accounts) in a single automation.
+Blueprint version: **2.0.0**
+
+The quota-alert blueprint notifies once per sensor for **low quota**, **quota exceeded**, and **quota refreshed**, then rearms after recovery so you are not spammed. Select one or more remaining-% sensors (pool and/or individual accounts) in a single automation.
+
+Version 2 is event-driven: it reacts when the **percentage state itself changes** and checks all configured sensors once when Home Assistant starts. Attribute-only updates do not trigger it, and there is no periodic timer.
 
 | Event | Default | Rearms when |
 |-------|---------|-------------|
@@ -12,54 +16,61 @@ Notify once per sensor for **low quota**, **quota exceeded**, and **quota refres
 
 Built-in delivery:
 
-- **Home Assistant persistent notification** (UI) — plain text + emoji titles
-- **Companion phone(s)** — HTML-bold body, color, icon, subtitle per event
-- **Additional actions** — optional TTS/scripts after an alert arms
+- **Home Assistant persistent notification** (UI)
+- **Companion phone(s)** through Home Assistant notify entities (`notify.send_message`)
+- **Additional actions** — optional TTS/scripts/etc. after an alert arms
 
-### Why you need a “helper”
+Phone delivery in v2 deliberately uses the selected Companion device instead of guessing a legacy `notify.mobile_app_<device name>` action. This is more reliable when a Home Assistant device name differs from the Companion registration name. The standard notify-entity action carries the title and message. If you need Companion-specific payload options such as tags, channels, colors, icons, or custom clear-notification behaviour, add them under **Additional actions**.
 
-Home Assistant automations do not remember “I already warned about this account” by themselves. Without memory, the blueprint would notify again every time the sensor updates or every 5 minutes while quota stays low.
+### Blueprint versions
 
-The **Text helper** is that memory. The blueprint writes short tokens into it, for example:
+The blueprint has its own version, independent of the Codex-LB Rates integration version. Home Assistant does not currently provide a native blueprint update entity, so the installed blueprint version is shown directly in its **name and description**.
+
+| Blueprint version | Main changes |
+|---|---|
+| **2.0.0** | Event-driven state changes, no timer polling, empty-helper initialization, compact alert memory with v1 migration, direct notify-entity device targeting, visible blueprint version |
+| **1.x** | Legacy full-entity state tokens, periodic five-minute check, inferred `notify.mobile_app_*` action names |
+
+#### Updating an imported blueprint
+
+If you imported the blueprint from GitHub, open **Settings → Automations & scenes → Blueprints**, open the blueprint menu, and choose **Re-import blueprint**. Home Assistant overwrites the imported blueprint from its saved source URL; reload automations if prompted.
+
+For users who want updates when they deliberately re-import, import the file from the repository's `main` branch. If you instead import a URL pinned to a release tag, that install intentionally stays on that release until you import a newer tag.
+
+Existing v1 multi-sensor automations can keep their selected sensors, Text helper, thresholds, and phones. On the first v2 run, legacy helper tokens such as `sensor.example::low` are recognized and rewritten to compact v2 tokens automatically.
+
+### Why you need a Text helper
+
+Home Assistant automations do not otherwise remember that a warning has already been sent. The **Text helper** stores that alert memory so repeated quota updates inside the same band do not create duplicate alerts.
+
+Version 2 uses compact stable tokens. A helper may look like:
 
 ```text
-sensor.codex_lb_pool_all_accounts_5h_remaining::low sensor.alice_5h_remaining::exceeded
+3a19c7de:l 7e0814aa:e
 ```
 
-Meaning: “already alerted low for the pool 5h sensor” and “already alerted exceeded for Alice.” When quota recovers, those tokens are removed so a future drop can alert again.
+The eight hexadecimal characters are a stable hash of the sensor entity ID. The suffix is the event: `l` = low, `e` = exceeded, and `r` = refreshed. This is much smaller than the v1 format, which stored the full entity ID for every flag and could overflow Home Assistant's 255-character Text helper limit in normal multi-account setups.
 
-You do **not** edit this text yourself. Create an empty Text helper, pick it in the blueprint, and leave it alone.
+You do **not** edit these tokens yourself. Create an empty Text helper, select it in the blueprint, and leave it alone. If a newly created helper initially reports `unknown`, v2 initializes it instead of aborting the automation.
 
-### Migration from the old blueprint
-
-This replaces the single-sensor + Toggle helper blueprint.
-
-1. Delete or disable the old automation.
-2. Create a **Text** helper (not Toggle) as below.
-3. Re-import/copy the blueprint and create a new automation with your sensors + the Text helper.
-
-### 1. Create the Text helper (click-by-click)
+### 1. Create the Text helper
 
 1. In Home Assistant open **Settings → Devices & services**.
 2. Open the **Helpers** tab.
 3. **Create helper → Text**.
 4. Fill in:
-   - **Name:** e.g. `Codex quota alerts` (any clear name is fine)
-   - **Maximum length:** `255` (important — the default 100 is often too small)
+   - **Name:** e.g. `Codex quota alerts`
+   - **Maximum length:** `255`
    - **Initial value:** leave **blank**
 5. Submit / create.
 
-You should now have an entity like `input_text.codex_quota_alerts`. Its state will stay empty until the first alert fires, then show tokens like the example above.
+You should now have an entity such as `input_text.codex_quota_alerts`.
 
-**Rules of thumb**
-
-- One Text helper **per** quota-alerts automation (do not share across automations).
-- Prefer separate automations for **5h** vs **weekly** if you watch many accounts (keeps the 255-character budget comfortable).
-- To “reset” alerts manually (force re-notify next time): set the helper’s value back to empty in **Developer tools → States**, or call `input_text.set_value` with an empty string.
+Use one Text helper **per quota-alert automation**; do not share the same helper between multiple copies of the blueprint. To reset alert memory manually, set the helper value to empty in **Developer tools → States**, or call `input_text.set_value` with an empty value.
 
 ### 2. Import the blueprint
 
-Copy from this repository:
+Copy:
 
 `blueprints/automation/codex_rates/quota_warning.yaml`
 
@@ -67,40 +78,41 @@ into your Home Assistant config as:
 
 `config/blueprints/automation/codex_rates/quota_warning.yaml`
 
-Then reload automations, or restart Home Assistant.
+Then reload automations or restart Home Assistant.
 
-You can also open **Settings → Automations & scenes → Blueprints → Import blueprint** and paste the raw GitHub URL for that file on the release tag you installed.
+Alternatively, open **Settings → Automations & scenes → Blueprints → Import blueprint** and import the GitHub URL for `blueprints/automation/codex_rates/quota_warning.yaml`. Use `main` if you want re-import to pick up the current blueprint, or a release tag if you intentionally want a pinned version.
 
 ### 3. Create the automation
 
 1. **Settings → Automations & scenes → Create automation → Use blueprint**.
-2. Choose **Codex-LB Rates quota alerts**.
+2. Choose **Codex-LB Rates quota alerts (v2.0.0)**.
 3. Under **Sensors and helper**:
    - **Remaining percentage sensors:** add one or more `%` remaining sensors (pool and/or accounts).
    - **Alert state helper:** select the Text helper from step 1 (`input_text.…`).
 4. Under **Alert levels**, leave the defaults or tweak thresholds.
-5. Under **Notifications** (collapsed):
+5. Under **Notifications**:
    - Leave persistent notification on, or turn it off.
-   - Optionally pick Companion phones.
-   - Optionally edit per-event titles/subtitles/messages.
+   - Optionally select one or more Companion phones.
+   - Optionally edit per-event titles/messages or add custom actions.
 6. Save.
 
-Phone notifications require the official Home Assistant Companion app. The blueprint calls `notify.mobile_app_<slugified_device_name>` for each selected phone.
-
-If save fails with **Missing input** for the helper, the Text helper was not selected — create it in step 1 and pick it before saving.
+Phone notifications require a Home Assistant Companion device that exposes a notify entity. If a selected phone has no notify entity, use **Developer tools → Actions → `notify.send_message`** to confirm that Home Assistant can target that device.
 
 ### Behaviour
 
 | Situation | Result |
 |-----------|--------|
-| Remaining enters an enabled alert band and that flag is unset | Sends notifications, stores `entity_id::event` in the Text helper |
-| Same band while flag is set | No repeat |
-| Remaining recovers past the rearm rule | Clears that notification and removes the flag |
-| Quota refreshed | Notifies only after a prior low/exceeded flag for that sensor; clears those flags and notifications |
-| Unknown / non-numeric / wrong unit | Sensor skipped; helper unchanged for that sensor |
+| Selected sensor's percentage state changes | Checks only that sensor |
+| Only an attribute changes while the percentage is unchanged | Does not trigger |
+| Home Assistant starts | Checks all selected sensors once |
+| Remaining enters an enabled alert band and its flag is unset | Sends notifications and stores a compact alert token |
+| Same band while its flag is set | No duplicate notification |
+| Remaining recovers past the rearm rule | Dismisses the matching HA persistent notification and removes the flag |
+| Quota reaches the refreshed threshold after a prior low/exceeded alert | Sends refreshed notification, clears low/exceeded state, and stores refreshed state |
+| Text helper exists but starts as `unknown` | Initializes it and continues |
+| Text helper is missing or unavailable | Stops rather than losing alert memory |
+| Sensor is unknown, non-numeric, outside 0–100, or not `%` | Skips that sensor |
 
-At **0%** with both low and exceeded enabled, only **exceeded** fires (low requires remaining above the exceeded threshold). If exceeded is disabled, low still fires at 0%.
+At **0%** with both low and exceeded enabled, only **exceeded** fires; low requires remaining to be above the exceeded threshold. If exceeded is disabled, low can still fire at 0%.
 
-The Text helper must stay within **255** characters (roughly a handful of sensors × three events). Prefer one automation per window (5h vs weekly) if you monitor many accounts.
-
-Triggers: sensor state changes, Home Assistant start, and every 5 minutes. Mode is **queued** so multi-sensor updates are not dropped.
+The automation runs in **queued** mode so overlapping sensor state changes are not silently discarded.
