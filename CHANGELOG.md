@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.1](https://github.com/uniskela/codex-lb-rates/compare/v0.6.0...v0.6.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* make quota alerts event-driven and version blueprint ([b6b8d21](https://github.com/uniskela/codex-lb-rates/commit/b6b8d21d7246e90f1f414002b327c0119767c492))
+* make quota blueprint event driven ([f107bda](https://github.com/uniskela/codex-lb-rates/commit/f107bda16764d63d21dd026efa345fb50a2d98b9))
+* recheck quota alerts after automation reload ([4b04be5](https://github.com/uniskela/codex-lb-rates/commit/4b04be51b868c3470f1a691bf4a4da4562e63067))
+
 ## [0.6.0](https://github.com/uniskela/codex-lb-rates/compare/v0.5.0...v0.6.0) (2026-09-15)
 
 
