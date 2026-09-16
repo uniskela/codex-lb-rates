@@ -6,7 +6,9 @@ Blueprint version: **2.0.0**
 
 The quota-alert blueprint notifies once per sensor for **low quota**, **quota exceeded**, and **quota refreshed**, then rearms after recovery so you are not spammed. Select one or more remaining-% sensors (pool and/or individual accounts) in a single automation.
 
-Version 2 is event-driven: it reacts when the **percentage state itself changes** and checks all configured sensors once when Home Assistant starts. Attribute-only updates do not trigger it, and there is no periodic timer.
+Version 2 is event-driven: it reacts when the **percentage state itself changes**, checks all configured sensors once when Home Assistant starts, and checks them again after automations reload. Attribute-only updates do not trigger it, and there is no periodic timer.
+
+This is **not a threshold-only trigger**. Each actual percentage change runs the lightweight threshold/recovery logic, while the alert is sent only when the configured low, exceeded, refreshed, or rearm conditions are met. Keeping the thresholds in the action logic preserves the blueprint's exact `≤` / `≥` comparisons and hysteresis behaviour.
 
 | Event | Default | Rearms when |
 |-------|---------|-------------|
@@ -28,14 +30,16 @@ The blueprint has its own version, independent of the Codex-LB Rates integration
 
 | Blueprint version | Main changes |
 |---|---|
-| **2.0.0** | Event-driven state changes, no timer polling, empty-helper initialization, compact alert memory with v1 migration, direct notify-entity device targeting, visible blueprint version |
+| **2.0.0** | Event-driven percentage changes, startup/reload catch-up checks, no timer polling, empty-helper initialization, compact alert memory with v1 migration, direct notify-entity device targeting, clearer traces, visible blueprint version |
 | **1.x** | Legacy full-entity state tokens, periodic five-minute check, inferred `notify.mobile_app_*` action names |
 
 #### Updating an imported blueprint
 
-If you imported the blueprint from GitHub, open **Settings → Automations & scenes → Blueprints**, open the blueprint menu, and choose **Re-import blueprint**. Home Assistant overwrites the imported blueprint from its saved source URL; reload automations if prompted.
+If you imported the blueprint from GitHub, open **Settings → Automations & scenes → Blueprints**, open the blueprint menu, and choose **Re-import blueprint**. Home Assistant overwrites the imported blueprint from its saved source URL; reload automations if prompted. The blueprint listens for Home Assistant's `automation_reloaded` event so it immediately rechecks all configured quota sensors after a reload instead of waiting for the next percentage change.
 
-For users who want updates when they deliberately re-import, import the file from the repository's `main` branch. If you instead import a URL pinned to a release tag, that install intentionally stays on that release until you import a newer tag.
+For users who want updates when they deliberately re-import, use the `main` branch import below. If you instead import a URL pinned to a release tag, that install intentionally stays on that release until you import a newer tag.
+
+[![Open your Home Assistant instance and import the Codex-LB Rates quota alert blueprint.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Funiskela%2Fcodex-lb-rates%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fcodex_rates%2Fquota_warning.yaml)
 
 Existing v1 multi-sensor automations can keep their selected sensors, Text helper, thresholds, and phones. On the first v2 run, legacy helper tokens such as `sensor.example::low` are recognized and rewritten to compact v2 tokens automatically.
 
@@ -70,7 +74,11 @@ Use one Text helper **per quota-alert automation**; do not share the same helper
 
 ### 2. Import the blueprint
 
-Copy:
+Recommended: use the one-click `main` branch import so Home Assistant keeps the GitHub source URL for future **Re-import blueprint** updates.
+
+[![Open your Home Assistant instance and import the Codex-LB Rates quota alert blueprint.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Funiskela%2Fcodex-lb-rates%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fcodex_rates%2Fquota_warning.yaml)
+
+Manual copy is also supported. Copy:
 
 `blueprints/automation/codex_rates/quota_warning.yaml`
 
@@ -80,7 +88,7 @@ into your Home Assistant config as:
 
 Then reload automations or restart Home Assistant.
 
-Alternatively, open **Settings → Automations & scenes → Blueprints → Import blueprint** and import the GitHub URL for `blueprints/automation/codex_rates/quota_warning.yaml`. Use `main` if you want re-import to pick up the current blueprint, or a release tag if you intentionally want a pinned version.
+If you intentionally want a pinned blueprint instead of following `main`, import the same GitHub file from a release tag URL.
 
 ### 3. Create the automation
 
@@ -105,14 +113,15 @@ Phone notifications require a Home Assistant Companion device that exposes a not
 | Selected sensor's percentage state changes | Checks only that sensor |
 | Only an attribute changes while the percentage is unchanged | Does not trigger |
 | Home Assistant starts | Checks all selected sensors once |
+| Automations reload | Checks all selected sensors once, including quotas already inside an alert band |
 | Remaining enters an enabled alert band and its flag is unset | Sends notifications and stores a compact alert token |
 | Same band while its flag is set | No duplicate notification |
 | Remaining recovers past the rearm rule | Dismisses the matching HA persistent notification and removes the flag |
 | Quota reaches the refreshed threshold after a prior low/exceeded alert | Sends refreshed notification, clears low/exceeded state, and stores refreshed state |
 | Text helper exists but starts as `unknown` | Initializes it and continues |
-| Text helper is missing or unavailable | Stops rather than losing alert memory |
+| Text helper is missing/unavailable or no sensors are configured | Stops with an explicit error reason in the automation trace |
 | Sensor is unknown, non-numeric, outside 0–100, or not `%` | Skips that sensor |
 
 At **0%** with both low and exceeded enabled, only **exceeded** fires; low requires remaining to be above the exceeded threshold. If exceeded is disabled, low can still fire at 0%.
 
-The automation runs in **queued** mode so overlapping sensor state changes are not silently discarded.
+The automation runs in **queued** mode so overlapping sensor state changes are not silently discarded. Key validation, migration, and sensor-evaluation steps also have trace aliases so failures are easier to identify than a generic `Condition: Template condition → Aborted` entry.
