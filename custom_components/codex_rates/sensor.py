@@ -105,6 +105,73 @@ def _is_reset_window_key(key: str) -> bool:
     return key.startswith("reset_") and key != "reset_credits"
 
 
+_WINDOW_LABELS: tuple[tuple[int, str], ...] = (
+    (5 * 60, "5h"),
+    (24 * 60, "Daily"),
+    (7 * 24 * 60, "Weekly"),
+    (30 * 24 * 60, "Monthly"),
+    (365 * 24 * 60, "Annual"),
+)
+_WINDOW_MINUTES_ATTRS = {
+    "remaining_5h": "window_minutes_5h",
+    "reset_5h": "window_minutes_5h",
+    "remaining_weekly": "window_minutes_weekly",
+    "reset_weekly": "window_minutes_weekly",
+    "remaining_monthly": "window_minutes_monthly",
+    "reset_monthly": "window_minutes_monthly",
+    "remaining_spark_5h": "window_minutes_spark_5h",
+    "reset_spark_5h": "window_minutes_spark_5h",
+    "remaining_spark_weekly": "window_minutes_spark_weekly",
+    "reset_spark_weekly": "window_minutes_spark_weekly",
+}
+
+
+def _window_duration_label(window_minutes: int | None) -> str | None:
+    """Return the same common duration labels used by the Codex client."""
+    if window_minutes is None or window_minutes <= 0:
+        return None
+    for expected, label in _WINDOW_LABELS:
+        if expected * 0.95 <= window_minutes <= expected * 1.05:
+            return label
+    return None
+
+
+def _fallback_window_label(key: str) -> str:
+    if "monthly" in key:
+        return "Monthly"
+    if "weekly" in key:
+        return "Secondary"
+    return "Primary"
+
+
+def _account_window_name(account: AccountQuota, key: str) -> str | None:
+    """Build an account sensor name from the provider-reported window duration."""
+    attr = _WINDOW_MINUTES_ATTRS.get(key)
+    if attr is None:
+        return None
+    label = _window_duration_label(getattr(account, attr))
+    if label is None:
+        return None
+    prefix = "Spark " if "spark" in key else ""
+    suffix = "resets" if key.startswith("reset_") else "remaining"
+    return f"{prefix}{label} {suffix}"
+
+
+def _pool_window_name(
+    key: str, window: WindowAggregate, fallback_name: str
+) -> str:
+    """Build a pool name from a uniform duration, or generic name for mixed windows."""
+    label = _window_duration_label(window.window_minutes)
+    if label is None:
+        if not window.by_minutes:
+            return fallback_name
+        label = _fallback_window_label(key)
+    if label != "5h":
+        label = label.lower()
+    prefix = "Spark " if "spark" in key else ""
+    return f"All accounts {prefix}{label} remaining"
+
+
 ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
     CodexRatesSensorDescription(
         key="remaining_5h",
@@ -630,6 +697,15 @@ class CodexAccountSensor(CoordinatorEntity[CodexRatesCoordinator], SensorEntity)
         self._attr_unique_id = f"{entry.entry_id}_{account_id}_{description.key}"
 
     @property
+    def name(self) -> str | None:
+        account = _account_from_data(self.coordinator.data, self.account_id)
+        if account is not None:
+            dynamic_name = _account_window_name(account, self.entity_description.key)
+            if dynamic_name is not None:
+                return dynamic_name
+        return self.entity_description.name
+
+    @property
     def icon(self) -> str | None:
         if self.entity_description.key == "status":
             account = _account_from_data(self.coordinator.data, self.account_id)
@@ -699,7 +775,7 @@ class CodexPoolSensor(CoordinatorEntity[CodexRatesCoordinator], SensorEntity):
         super().__init__(coordinator)
         self._key = key
         self._entry = entry
-        self._attr_name = name
+        self._fallback_name = name
         self._attr_icon = "mdi:lightning-bolt" if "spark" in key else "mdi:gauge"
         self._attr_unique_id = f"{entry.entry_id}_{POOL_DEVICE_ID}_{key}"
         self._attr_device_info = DeviceInfo(
@@ -722,6 +798,13 @@ class CodexPoolSensor(CoordinatorEntity[CodexRatesCoordinator], SensorEntity):
         if self._key == "remaining_spark_weekly":
             return data.pool.remaining_spark_weekly
         return data.pool.remaining_monthly
+
+    @property
+    def name(self) -> str | None:
+        window = self._window()
+        if window is None:
+            return self._fallback_name
+        return _pool_window_name(self._key, window, self._fallback_name)
 
     @property
     def native_value(self) -> float | None:
