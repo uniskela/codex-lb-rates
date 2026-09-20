@@ -29,7 +29,7 @@ Home Assistant integration for monitoring **Codex quota remaining and reset time
 
 Manual installation is also supported by copying `custom_components/codex_rates` into Home Assistant's `config/custom_components/` directory.
 
-Full instructions: **[Installation](docs/installation.md)**.
+Full instructions: **[Installation](https://uniskela.com/docs/codex-lb-rates/installation/)**.
 
 ## Choose a provider
 
@@ -40,21 +40,23 @@ Full instructions: **[Installation](docs/installation.md)**.
 
 Codex-LB API keys cannot read the account quota endpoint used by this integration; use the dashboard/guest session flow.
 
-See **[Configuration](docs/configuration.md)** for the complete setup guide.
+See **[Configuration](https://uniskela.com/docs/codex-lb-rates/configuration/)** for the complete setup guide.
 
 ## Documentation
 
+The canonical user documentation is published at **[uniskela.com/docs/codex-lb-rates](https://uniskela.com/docs/codex-lb-rates/)**.
+
 | Guide | Covers |
 |---|---|
-| [Overview](docs/index.md) | How the integration is structured and where to start |
-| [Installation](docs/installation.md) | HACS/manual install and first setup |
-| [Configuration](docs/configuration.md) | Codex-LB and ChatGPT authentication, options |
-| [Entities and data](docs/entities.md) | Sensors, reset attributes, pool weighting, optional windows |
-| [Dashboard examples](docs/dashboard.md) | Copyable Lovelace examples |
-| [Quota alert automations](docs/automations.md) | Blueprint setup, behaviour, updates, migration |
-| [Upgrading](docs/upgrading.md) | Integration updates vs blueprint updates |
-| [Troubleshooting](docs/troubleshooting.md) | Authentication, missing sensors, stale data, diagnostics |
-| [Releases](docs/releases.md) | Maintainer release/versioning process |
+| [Overview](https://uniskela.com/docs/codex-lb-rates/) | How the integration is structured and where to start |
+| [Installation](https://uniskela.com/docs/codex-lb-rates/installation/) | HACS/manual install and first setup |
+| [Configuration](https://uniskela.com/docs/codex-lb-rates/configuration/) | Codex-LB and ChatGPT authentication, options |
+| [Entities and data](https://uniskela.com/docs/codex-lb-rates/entities/) | Sensors, reset attributes, pool weighting, optional windows |
+| [Dashboard examples](https://uniskela.com/docs/codex-lb-rates/dashboard/) | Copyable Lovelace examples |
+| [Quota alert automations](https://uniskela.com/docs/codex-lb-rates/automations/) | Blueprint setup, behaviour, updates, migration |
+| [Upgrading](https://uniskela.com/docs/codex-lb-rates/upgrading/) | Integration updates vs blueprint updates |
+| [Troubleshooting](https://uniskela.com/docs/codex-lb-rates/troubleshooting/) | Authentication, missing sensors, stale data, diagnostics |
+| [Releases](https://uniskela.com/docs/codex-lb-rates/releases/) | Maintainer release/versioning process |
 
 ## Quota alerts
 
@@ -64,7 +66,7 @@ It can monitor one or more remaining-% sensors and send one-shot **low**, **exce
 
 [![Open your Home Assistant instance and import the Codex-LB Rates quota alert blueprint.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Funiskela%2Fcodex-lb-rates%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fcodex_rates%2Fquota_warning.yaml)
 
-The blueprint requires a Home Assistant **Text helper** for its alert memory and is versioned independently from the integration. Follow **[Quota alert automations](docs/automations.md)** rather than copying the YAML blindly.
+The blueprint requires a Home Assistant **Text helper** for its alert memory and is versioned independently from the integration. Follow **[Quota alert automations](https://uniskela.com/docs/codex-lb-rates/automations/)** rather than copying the YAML blindly.
 
 ## Integration options
 
@@ -90,7 +92,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-Releases use [Release Please](https://github.com/googleapis/release-please) and Conventional Commits. Maintainer workflow details live in [AGENTS.md](AGENTS.md) and [docs/releases.md](docs/releases.md).
+Releases use [Release Please](https://github.com/googleapis/release-please) and Conventional Commits. Maintainer workflow details live in [AGENTS.md](AGENTS.md) and [docs/releases.md](https://uniskela.com/docs/codex-lb-rates/releases/).
 
 ## License
 
