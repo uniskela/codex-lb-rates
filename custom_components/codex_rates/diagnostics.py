@@ -81,6 +81,14 @@ async def async_get_config_entry_diagnostics(
                 "reset_credits": account.reset_credits,
                 "plan_type": account.plan_type,
                 "last_refresh_at": _isoformat(account.last_refresh_at),
+                "request_count": account.request_count,
+                "total_tokens": account.total_tokens,
+                "cached_input_tokens": account.cached_input_tokens,
+                "total_cost_usd": account.total_cost_usd,
+                "additional_quota_keys": [
+                    quota.quota_key or quota.limit_name
+                    for quota in account.additional_quotas
+                ],
             }
             for field in _WINDOW_MINUTE_FIELDS:
                 account_data[field] = getattr(account, field)

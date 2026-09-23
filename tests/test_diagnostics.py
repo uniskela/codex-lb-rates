@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
 
-from custom_components.codex_rates.const import CONF_POLL_INTERVAL, DOMAIN
+from custom_components.codex_rates.const import (
+    CONF_MODE,
+    CONF_POLL_INTERVAL,
+    DOMAIN,
+    MODE_CHATGPT,
+    MODE_CODEX_LB,
+)
 from custom_components.codex_rates.coordinator import CodexRatesCoordinator
 from custom_components.codex_rates.diagnostics import async_get_config_entry_diagnostics
 from custom_components.codex_rates.models import AccountQuota, ProviderSnapshot
@@ -109,7 +115,11 @@ async def test_coordinator_records_last_successful_poll_time(monkeypatch) -> Non
         async def async_fetch(self):
             return snapshot
 
-    entry = SimpleNamespace(entry_id="entry", options={}, data={CONF_POLL_INTERVAL: 60})
+    entry = SimpleNamespace(
+        entry_id="entry",
+        options={},
+        data={CONF_POLL_INTERVAL: 60, CONF_MODE: MODE_CODEX_LB},
+    )
     coordinator = CodexRatesCoordinator(SimpleNamespace(data={}), entry)
     coordinator._provider = _Provider()
 
@@ -118,6 +128,7 @@ async def test_coordinator_records_last_successful_poll_time(monkeypatch) -> Non
     assert result is snapshot
     assert coordinator.poll_interval_seconds == 60
     assert coordinator.last_successful_poll_at == now
+    assert snapshot.accounts[0].last_refresh_at is None
 
 
 @pytest.mark.asyncio
@@ -198,7 +209,6 @@ async def test_coordinator_skips_provider_during_cooldown(monkeypatch) -> None:
 async def test_coordinator_clears_cooldown_after_success(monkeypatch) -> None:
     """A successful fetch restores the configured poll interval."""
     import custom_components.codex_rates.coordinator as coordinator_mod
-    from datetime import timedelta
 
     now = datetime(2026, 9, 16, 12, 30, tzinfo=timezone.utc)
 
@@ -268,3 +278,34 @@ async def test_diagnostics_expose_active_rate_limit_cooldown(monkeypatch) -> Non
         == "2026-09-16T12:35:00+00:00"
     )
     assert result["coordinator"]["last_rate_limit_retry_after"] == 420.0
+
+
+@pytest.mark.asyncio
+async def test_coordinator_fills_chatgpt_last_refresh_from_poll(monkeypatch) -> None:
+    import custom_components.codex_rates.coordinator as coordinator_mod
+
+    now = datetime(2026, 9, 16, 12, 30, tzinfo=timezone.utc)
+
+    class _FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now if tz is None else now.astimezone(tz)
+
+    monkeypatch.setattr(coordinator_mod, "datetime", _FixedDateTime, raising=False)
+
+    snapshot = ProviderSnapshot(accounts=[AccountQuota(account_id="acc")])
+
+    class _Provider:
+        async def async_fetch(self):
+            return snapshot
+
+    entry = SimpleNamespace(
+        entry_id="entry",
+        options={},
+        data={CONF_POLL_INTERVAL: 60, CONF_MODE: MODE_CHATGPT},
+    )
+    coordinator = CodexRatesCoordinator(SimpleNamespace(data={}), entry)
+    coordinator._provider = _Provider()
+
+    await coordinator._async_update_data()
+    assert snapshot.accounts[0].last_refresh_at == now

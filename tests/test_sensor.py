@@ -216,6 +216,62 @@ def test_chatgpt_excludes_monthly_includes_reset_credits() -> None:
     assert "reset_credits" in keys
     assert "remaining_5h" in keys
     assert "plan_type" not in keys  # rich
+    assert "request_count" not in keys  # rich
+
+
+def test_rich_sensors_include_request_count() -> None:
+    keys = {
+        d.key
+        for d in ACCOUNT_SENSORS
+        if _include_description(d, rich=True, is_codex_lb=True, has_monthly=True)
+    }
+    assert "request_count" in keys
+    assert "plan_type" in keys
+    assert "last_refresh" in keys
+
+
+def test_status_exposes_additional_quotas_and_request_usage_attrs() -> None:
+    from custom_components.codex_rates.models import (
+        AdditionalQuota,
+        AdditionalQuotaWindow,
+    )
+    from custom_components.codex_rates.sensor import CodexAccountSensor
+
+    account = AccountQuota(
+        account_id="a",
+        status="active",
+        request_count=7,
+        total_tokens=100,
+        cached_input_tokens=40,
+        total_cost_usd=0.05,
+        additional_quotas=[
+            AdditionalQuota(
+                quota_key="codex_research",
+                limit_name="codex_research",
+                display_label="Research",
+                routing_policy="burn_first",
+                primary=AdditionalQuotaWindow(
+                    used_percent=40, remaining_percent=60, window_minutes=300
+                ),
+            )
+        ],
+    )
+    entry = SimpleNamespace(entry_id="test", options={})
+    coordinator = SimpleNamespace(data=ProviderSnapshot(accounts=[account]))
+    status = next(d for d in ACCOUNT_SENSORS if d.key == "status")
+    request = next(d for d in ACCOUNT_SENSORS if d.key == "request_count")
+    status_sensor = CodexAccountSensor(coordinator, entry, "a", status)
+    request_sensor = CodexAccountSensor(coordinator, entry, "a", request)
+    status_attrs = status_sensor.extra_state_attributes
+    assert status_attrs is not None
+    assert status_attrs["additional_quotas"][0]["quota_key"] == "codex_research"
+    assert status_attrs["additional_quotas"][0]["primary"]["remaining_percent"] == 60
+    assert request_sensor.native_value == 7
+    request_attrs = request_sensor.extra_state_attributes
+    assert request_attrs is not None
+    assert request_attrs["total_tokens"] == 100
+    assert request_attrs["cached_input_tokens"] == 40
+    assert request_attrs["total_cost_usd"] == 0.05
 
 
 def test_codex_lb_includes_monthly_when_present() -> None:

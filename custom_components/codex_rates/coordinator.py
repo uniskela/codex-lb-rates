@@ -217,8 +217,14 @@ class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
             self._provider = self._build_provider()
         try:
             snapshot = await self._provider.async_fetch()
-            self.last_successful_poll_at = datetime.now(timezone.utc)
+            now = datetime.now(timezone.utc)
+            self.last_successful_poll_at = now
             self._clear_rate_limit_cooldown()
+            # ChatGPT usage payloads often omit last_refresh; fall back to poll time.
+            if self.entry.data.get(CONF_MODE) != MODE_CODEX_LB:
+                for account in snapshot.accounts:
+                    if account.last_refresh_at is None:
+                        account.last_refresh_at = now
             return snapshot
         except CodexRatesAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err

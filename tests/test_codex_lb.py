@@ -256,6 +256,87 @@ async def test_codex_lb_maps_spark_quota_and_omits_absent_accounts(
 
 
 @pytest.mark.asyncio
+async def test_codex_lb_maps_request_usage_and_non_spark_additional_quotas(
+    aiohttp_client,
+) -> None:
+    async def accounts(request: web.Request) -> web.Response:
+        return web.json_response(
+            {
+                "accounts": [
+                    {
+                        "accountId": "pro",
+                        "status": "active",
+                        "usage": {"primaryRemainingPercent": 80},
+                        "requestUsage": {
+                            "requestCount": 7,
+                            "totalTokens": 51480,
+                            "cachedInputTokens": 41470,
+                            "totalCostUsd": 0.13,
+                        },
+                        "additionalQuotas": [
+                            {
+                                "quotaKey": "codex_spark",
+                                "limitName": "codex_spark",
+                                "meteredFeature": "codex_bengalfox",
+                                "displayLabel": "GPT-5.3-Codex-Spark",
+                                "routingPolicy": "inherit",
+                                "primaryWindow": {
+                                    "usedPercent": 0,
+                                    "resetAt": 1789494235,
+                                    "windowMinutes": 300,
+                                },
+                                "secondaryWindow": {
+                                    "usedPercent": 100,
+                                    "resetAt": 1789807641,
+                                    "windowMinutes": 10080,
+                                },
+                            },
+                            {
+                                "quotaKey": "codex_research",
+                                "limitName": "codex_research",
+                                "meteredFeature": "codex_research",
+                                "displayLabel": "Research",
+                                "routingPolicy": "burn_first",
+                                "primaryWindow": {
+                                    "usedPercent": 40,
+                                    "resetAt": 1789494235,
+                                    "windowMinutes": 300,
+                                },
+                            },
+                        ],
+                    }
+                ]
+            }
+        )
+
+    app = web.Application()
+    app.router.add_get("/api/accounts", accounts)
+    client = await aiohttp_client(app)
+    async with aiohttp.ClientSession() as session:
+        snapshot = await CodexLbProvider(
+            session, base_url=str(client.make_url("/")).rstrip("/")
+        )._fetch_accounts()
+
+    account = snapshot.accounts[0]
+    assert account.request_count == 7
+    assert account.total_tokens == 51480
+    assert account.cached_input_tokens == 41470
+    assert account.total_cost_usd == 0.13
+    assert account.remaining_spark_5h == 100
+    assert account.remaining_spark_weekly == 0
+    assert len(account.additional_quotas) == 2
+    spark, research = account.additional_quotas
+    assert spark.is_spark is True
+    assert research.is_spark is False
+    assert research.quota_key == "codex_research"
+    assert research.routing_policy == "burn_first"
+    assert research.primary is not None
+    assert research.primary.used_percent == 40
+    assert research.primary.remaining_percent == 60
+    assert research.as_dict()["primary"]["used_percent"] == 40
+
+
+@pytest.mark.asyncio
 async def test_codex_lb_guest_login(aiohttp_client) -> None:
     state = {"authed": False}
 

@@ -212,6 +212,16 @@ class ChatGptProvider:
                 reset_credits = _as_int(rlrc.get(key))
                 break
 
+        last_refresh_at = parse_iso_datetime(
+            data.get("last_refresh_at")
+            or data.get("lastRefreshAt")
+            or data.get("last_refresh")
+            or data.get("lastRefresh")
+            or rate.get("last_refresh_at")
+            or rate.get("lastRefreshAt")
+        )
+        request_usage = _parse_request_usage(data)
+
         return AccountQuota(
             account_id=self._account_id,
             email=self._email,
@@ -228,6 +238,11 @@ class ChatGptProvider:
             plan_type=plan if isinstance(plan, str) else None,
             credits_balance=str(balance) if balance is not None else None,
             reset_credits=reset_credits,
+            last_refresh_at=last_refresh_at,
+            request_count=request_usage.get("request_count"),
+            total_tokens=request_usage.get("total_tokens"),
+            cached_input_tokens=request_usage.get("cached_input_tokens"),
+            total_cost_usd=request_usage.get("total_cost_usd"),
         )
 
 
@@ -293,6 +308,38 @@ def _as_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _first(data: dict[str, Any] | None, *keys: str) -> Any:
+    if not isinstance(data, dict):
+        return None
+    for key in keys:
+        if key in data:
+            return data[key]
+    return None
+
+
+def _parse_request_usage(data: dict[str, Any]) -> dict[str, Any]:
+    """Map optional requestUsage totals when the usage payload includes them."""
+    raw = data.get("request_usage") or data.get("requestUsage")
+    if not isinstance(raw, dict):
+        return {}
+    result: dict[str, Any] = {}
+    request_count = _as_int(_first(raw, "request_count", "requestCount"))
+    total_tokens = _as_int(_first(raw, "total_tokens", "totalTokens"))
+    cached_input_tokens = _as_int(
+        _first(raw, "cached_input_tokens", "cachedInputTokens")
+    )
+    total_cost_usd = _as_float(_first(raw, "total_cost_usd", "totalCostUsd"))
+    if request_count is not None:
+        result["request_count"] = request_count
+    if total_tokens is not None:
+        result["total_tokens"] = total_tokens
+    if cached_input_tokens is not None:
+        result["cached_input_tokens"] = cached_input_tokens
+    if total_cost_usd is not None:
+        result["total_cost_usd"] = total_cost_usd
+    return result
 
 
 async def _safe_json(resp: aiohttp.ClientResponse) -> dict[str, Any]:

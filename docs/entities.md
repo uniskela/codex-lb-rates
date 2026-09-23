@@ -96,6 +96,8 @@ The integration normalizes account status into these states:
 
 The original provider value is retained in the `raw_status` attribute.
 
+When Codex-LB reports `additionalQuotas`, the status sensor also includes an `additional_quotas` attribute: a list of structured rows (Spark and any other gated quotas) with keys, labels, routing policy, and primary/secondary window used % / reset / duration.
+
 ## Reset credits
 
 When the provider reports reset credits, the integration exposes a **Reset credits** sensor.
@@ -110,9 +112,12 @@ When the provider supplies the values, they add:
 
 - **Plan**;
 - **Credits balance**;
-- **Last refresh**.
+- **Last refresh**;
+- **Request count** (Codex-LB `requestUsage` totals: state is request count; attributes can include `total_tokens`, `cached_input_tokens`, and `total_cost_usd`).
 
 These are diagnostic entities and may be absent when the upstream API does not provide the corresponding value.
+
+For ChatGPT / CLI accounts, **Last refresh** uses a timestamp from the usage payload when present; otherwise it falls back to the time of the last successful poll.
 
 ## Codex-LB pool device
 

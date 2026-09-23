@@ -7,6 +7,77 @@ from datetime import datetime, timezone
 from math import isfinite
 from typing import Any
 
+# Codex-LB / ChatGPT additional-quota keys treated as the Spark model window.
+_SPARK_QUOTA_KEYS = frozenset({"codex_spark", "codex_other", "gpt-5.3-codex-spark"})
+_SPARK_METERED_FEATURES = frozenset({"codex_bengalfox"})
+
+
+@dataclass(slots=True)
+class AdditionalQuotaWindow:
+    """One primary/secondary window inside an additional quota row."""
+
+    used_percent: float | None = None
+    remaining_percent: float | None = None
+    reset_at: datetime | None = None
+    window_minutes: int | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        """Serialize for Home Assistant attributes."""
+        payload: dict[str, Any] = {}
+        if self.used_percent is not None:
+            payload["used_percent"] = self.used_percent
+        if self.remaining_percent is not None:
+            payload["remaining_percent"] = self.remaining_percent
+        if self.reset_at is not None:
+            payload["resets_at"] = self.reset_at.isoformat()
+        if self.window_minutes is not None:
+            payload["window_minutes"] = self.window_minutes
+        return payload
+
+
+@dataclass(slots=True)
+class AdditionalQuota:
+    """Normalized Codex-LB ``additionalQuotas`` row (Spark or other)."""
+
+    quota_key: str | None = None
+    limit_name: str | None = None
+    metered_feature: str | None = None
+    display_label: str | None = None
+    routing_policy: str | None = None
+    primary: AdditionalQuotaWindow | None = None
+    secondary: AdditionalQuotaWindow | None = None
+
+    @property
+    def is_spark(self) -> bool:
+        """True when this row is the known Codex Spark gated quota."""
+        key = (self.quota_key or "").strip().lower()
+        feature = (self.metered_feature or "").strip().lower()
+        limit = (self.limit_name or "").strip().lower()
+        return (
+            key in _SPARK_QUOTA_KEYS
+            or limit in _SPARK_QUOTA_KEYS
+            or feature in _SPARK_METERED_FEATURES
+        )
+
+    def as_dict(self) -> dict[str, Any]:
+        """Serialize for Home Assistant attributes."""
+        payload: dict[str, Any] = {}
+        if self.quota_key is not None:
+            payload["quota_key"] = self.quota_key
+        if self.limit_name is not None:
+            payload["limit_name"] = self.limit_name
+        if self.metered_feature is not None:
+            payload["metered_feature"] = self.metered_feature
+        if self.display_label is not None:
+            payload["display_label"] = self.display_label
+        if self.routing_policy is not None:
+            payload["routing_policy"] = self.routing_policy
+        if self.primary is not None:
+            payload["primary"] = self.primary.as_dict()
+        if self.secondary is not None:
+            payload["secondary"] = self.secondary.as_dict()
+        return payload
+
 
 @dataclass(slots=True)
 class AccountQuota:
@@ -44,6 +115,11 @@ class AccountQuota:
     reset_spark_weekly: datetime | None = None
     window_minutes_spark_5h: int | None = None
     window_minutes_spark_weekly: int | None = None
+    request_count: int | None = None
+    total_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    total_cost_usd: float | None = None
+    additional_quotas: list[AdditionalQuota] = field(default_factory=list)
     extra: dict[str, Any] = field(default_factory=dict)
 
     @property
