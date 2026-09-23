@@ -11,7 +11,7 @@ If this is your first time installing the integration:
 1. [Install Codex-LB Rates](installation.md).
 2. [Configure your provider](configuration.md).
 3. [Understand the entities Home Assistant creates](entities.md).
-4. Optionally build a [dashboard](dashboard.md) or set up [quota alerts](automations.md).
+4. Optionally build a [dashboard](dashboard.md) (stock cards or the bundled remaining-% card) or set up [quota alerts](automations.md).
 
 If you already use the integration, see [upgrading](upgrading.md) before changing versions or re-importing the alert blueprint.
 
@@ -54,7 +54,7 @@ Quota window names are based on the duration reported by the provider when that 
 | [Installation](installation.md) | HACS, manual installation, first setup |
 | [Configuration](configuration.md) | Codex-LB login modes, ChatGPT authentication, integration options |
 | [Entities and data](entities.md) | Sensors, attributes, pool weighting, dynamic window names |
-| [Dashboard examples](dashboard.md) | Practical Lovelace cards for quota and resets |
+| [Dashboard examples](dashboard.md) | Practical Lovelace cards, including the bundled remaining-% card |
 | [Quota alert automations](automations.md) | Low/exceeded/refreshed notifications without alert spam |
 | [Upgrading](upgrading.md) | Integration updates vs blueprint updates |
 | [Troubleshooting](troubleshooting.md) | Missing sensors, stale data, authentication, diagnostics |

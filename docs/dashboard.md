@@ -1,9 +1,43 @@
 # Dashboard examples
 
-Codex-LB Rates uses normal Home Assistant sensors, so you can build dashboards with standard cards.
+Codex-LB Rates uses normal Home Assistant sensors, so you can build dashboards with standard cards. It also ships an optional **custom Lovelace card** for pool and remaining-% at a glance.
 
 > [!IMPORTANT]
 > Replace every example entity ID below with the real ID from **Developer tools → States**. Account names and generated IDs vary by installation.
+
+## Custom remaining card
+
+The integration packages a Lovelace module at:
+
+`/codex_rates/codex-rates-card.js`
+
+After you install or update the integration and restart Home Assistant, **storage-mode** Lovelace usually registers that module automatically when the integration loads. If the card type is still missing from the UI picker (or you use **YAML-mode** resources), add it once under **Settings → Dashboards → ⋮ → Resources**:
+
+| Field | Value |
+|---|---|
+| URL | `/codex_rates/codex-rates-card.js` |
+| Resource type | **JavaScript module** |
+
+YAML-mode Lovelace cannot be updated by the integration. Add the same URL under your Lovelace `resources:` list (or rely on the frontend module injection that runs when the integration loads), then reload resources / refresh the browser.
+
+```yaml
+type: custom:codex-rates-card
+title: Codex pool
+entity: sensor.codex_lb_pool_all_accounts_5h_remaining
+entities:
+  - sensor.codex_lb_pool_all_accounts_weekly_remaining
+  - entity: sensor.my_account_5h_remaining
+    name: Account primary
+```
+
+Behaviour:
+
+- The first entity (`entity`, or the first `entities` item) is the large remaining-% value and progress bar.
+- Extra `entities` rows show additional remaining-% sensors (other pool windows or accounts).
+- Optional `green` / `yellow` thresholds default to `50` / `20` (same “plenty / getting low / little left” bands as the gauge examples below).
+- When the primary entity is a pool sensor, the card surfaces `min` / `max`, `sample_count`, and `weighting_method` when those attributes exist.
+
+Hard-refresh the browser (or clear the dashboard cache) after an integration update if an older card bundle is still cached.
 
 ## Simple account card
 

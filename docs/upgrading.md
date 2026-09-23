@@ -15,7 +15,7 @@ Updating one does not automatically update the other.
 4. Restart Home Assistant.
 5. Open **Settings → Devices & services → Codex-LB Rates** and confirm the integration loads normally.
 
-A restart matters because this is a Python custom integration.
+A restart matters because this is a Python custom integration. After restart, hard-refresh any dashboard that uses `custom:codex-rates-card` if the browser still shows a cached card bundle.
 
 Check the repository [CHANGELOG](../CHANGELOG.md) or GitHub release before updating when you want to review behaviour changes first.
 

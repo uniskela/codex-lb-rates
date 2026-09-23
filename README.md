@@ -17,6 +17,7 @@ Home Assistant integration for monitoring **Codex quota remaining and reset time
 - **Reset display choice** — countdown by default, or local absolute date/time while keeping the exact ISO timestamp in `resets_at`.
 - **Optional rich diagnostics** — plan, credit balance, and last refresh.
 - **Quota-alert blueprint** — low, exceeded, and refreshed notifications with hysteresis and remembered alert state.
+- **Bundled Lovelace card** — optional `custom:codex-rates-card` for pool and remaining-% sensors (served from the integration `www/` folder).
 
 ## Install
 
@@ -52,7 +53,7 @@ The canonical user documentation is published at **[uniskela.com/docs/codex-lb-r
 | [Installation](https://uniskela.com/docs/codex-lb-rates/installation/) | HACS/manual install and first setup |
 | [Configuration](https://uniskela.com/docs/codex-lb-rates/configuration/) | Codex-LB and ChatGPT authentication, options |
 | [Entities and data](https://uniskela.com/docs/codex-lb-rates/entities/) | Sensors, reset attributes, pool weighting, optional windows |
-| [Dashboard examples](https://uniskela.com/docs/codex-lb-rates/dashboard/) | Copyable Lovelace examples |
+| [Dashboard examples](https://uniskela.com/docs/codex-lb-rates/dashboard/) | Copyable Lovelace examples, including the bundled remaining card |
 | [Quota alert automations](https://uniskela.com/docs/codex-lb-rates/automations/) | Blueprint setup, behaviour, updates, migration |
 | [Upgrading](https://uniskela.com/docs/codex-lb-rates/upgrading/) | Integration updates vs blueprint updates |
 | [Troubleshooting](https://uniskela.com/docs/codex-lb-rates/troubleshooting/) | Authentication, missing sensors, stale data, diagnostics |
