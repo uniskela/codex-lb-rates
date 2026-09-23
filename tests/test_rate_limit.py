@@ -45,9 +45,83 @@ def test_coordinator_cooldown_defaults_and_caps() -> None:
     )
     from custom_components.codex_rates.coordinator import CodexRatesCoordinator
 
-    entry = SimpleNamespace(options={}, data={CONF_POLL_INTERVAL: 60})
-    coordinator = CodexRatesCoordinator(SimpleNamespace(), entry)
+    entry = SimpleNamespace(entry_id="entry", options={}, data={CONF_POLL_INTERVAL: 60})
+    coordinator = CodexRatesCoordinator(SimpleNamespace(data={}), entry)
 
     assert coordinator._cooldown_seconds(None) == DEFAULT_RATE_LIMIT_COOLDOWN
     assert coordinator._cooldown_seconds(5) == MIN_POLL_INTERVAL
     assert coordinator._cooldown_seconds(99999) == MAX_RATE_LIMIT_COOLDOWN
+    assert coordinator._cooldown_seconds(60.5) == 61
+
+
+async def test_cooldown_survives_coordinator_recreation(monkeypatch) -> None:
+    """Options reloads and failed first-refresh retries must respect Retry-After."""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    import pytest
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+    import custom_components.codex_rates.coordinator as coordinator_mod
+    from custom_components.codex_rates.models import ProviderSnapshot
+
+    now = datetime(2026, 9, 23, 12, tzinfo=timezone.utc)
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now
+
+    monkeypatch.setattr(coordinator_mod, "datetime", Clock)
+    hass = SimpleNamespace(data={})
+    entry = SimpleNamespace(entry_id="entry", options={}, data={})
+    first = coordinator_mod.CodexRatesCoordinator(hass, entry)
+    first._provider = SimpleNamespace(
+        async_fetch=AsyncMock(
+            side_effect=CodexRatesRateLimitError("limited", retry_after=120)
+        )
+    )
+    with pytest.raises(UpdateFailed):
+        await first._async_update_data()
+
+    entry.options = {"poll_interval": 90}
+    reloaded = coordinator_mod.CodexRatesCoordinator(hass, entry)
+    fetch = AsyncMock(return_value=ProviderSnapshot(accounts=[]))
+    reloaded._provider = SimpleNamespace(async_fetch=fetch)
+    with pytest.raises(UpdateFailed, match="cooldown"):
+        await reloaded._async_update_data()
+    fetch.assert_not_awaited()
+    assert reloaded.update_interval == timedelta(seconds=120)
+
+    # A separate config entry must still be able to poll.
+    other = coordinator_mod.CodexRatesCoordinator(
+        hass, SimpleNamespace(entry_id="other", options={}, data={})
+    )
+    other._provider = SimpleNamespace(
+        async_fetch=AsyncMock(return_value=ProviderSnapshot(accounts=[]))
+    )
+    await other._async_update_data()
+
+    now += timedelta(seconds=120)
+    await reloaded._async_update_data()
+    fetch.assert_awaited_once()
+    assert reloaded.update_interval == timedelta(seconds=90)
+    fresh = coordinator_mod.CodexRatesCoordinator(hass, entry)
+    assert fresh.rate_limit_cooldown_until is None
+
+
+async def test_failed_first_refresh_closes_private_session(monkeypatch) -> None:
+    """HA does not call unload when setup fails during its first refresh."""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    import pytest
+    import custom_components.codex_rates as integration
+
+    coordinator = SimpleNamespace(
+        async_config_entry_first_refresh=AsyncMock(side_effect=RuntimeError("retry")),
+        async_shutdown_provider=AsyncMock(),
+    )
+    monkeypatch.setattr(integration, "CodexRatesCoordinator", lambda *args: coordinator)
+    with pytest.raises(RuntimeError, match="retry"):
+        await integration.async_setup_entry(SimpleNamespace(data={}), SimpleNamespace())
+    coordinator.async_shutdown_provider.assert_awaited_once()

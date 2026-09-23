@@ -109,8 +109,8 @@ async def test_coordinator_records_last_successful_poll_time(monkeypatch) -> Non
         async def async_fetch(self):
             return snapshot
 
-    entry = SimpleNamespace(options={}, data={CONF_POLL_INTERVAL: 60})
-    coordinator = CodexRatesCoordinator(SimpleNamespace(), entry)
+    entry = SimpleNamespace(entry_id="entry", options={}, data={CONF_POLL_INTERVAL: 60})
+    coordinator = CodexRatesCoordinator(SimpleNamespace(data={}), entry)
     coordinator._provider = _Provider()
 
     result = await coordinator._async_update_data()
@@ -140,8 +140,8 @@ async def test_coordinator_applies_cooldown_on_rate_limit(monkeypatch) -> None:
         async def async_fetch(self):
             raise CodexRatesRateLimitError("limited", retry_after=120)
 
-    entry = SimpleNamespace(options={}, data={CONF_POLL_INTERVAL: 60})
-    coordinator = CodexRatesCoordinator(SimpleNamespace(), entry)
+    entry = SimpleNamespace(entry_id="entry", options={}, data={CONF_POLL_INTERVAL: 60})
+    coordinator = CodexRatesCoordinator(SimpleNamespace(data={}), entry)
     coordinator._provider = _Provider()
 
     with pytest.raises(UpdateFailed) as excinfo:
@@ -179,8 +179,8 @@ async def test_coordinator_skips_provider_during_cooldown(monkeypatch) -> None:
             calls["n"] += 1
             raise AssertionError("provider should not be called during cooldown")
 
-    entry = SimpleNamespace(options={}, data={CONF_POLL_INTERVAL: 60})
-    coordinator = CodexRatesCoordinator(SimpleNamespace(), entry)
+    entry = SimpleNamespace(entry_id="entry", options={}, data={CONF_POLL_INTERVAL: 60})
+    coordinator = CodexRatesCoordinator(SimpleNamespace(data={}), entry)
     coordinator._provider = _Provider()
     coordinator.rate_limit_cooldown_until = now.replace(minute=35)
     coordinator.last_rate_limit_at = now.replace(minute=29)
@@ -215,8 +215,8 @@ async def test_coordinator_clears_cooldown_after_success(monkeypatch) -> None:
         async def async_fetch(self):
             return snapshot
 
-    entry = SimpleNamespace(options={}, data={CONF_POLL_INTERVAL: 60})
-    coordinator = CodexRatesCoordinator(SimpleNamespace(), entry)
+    entry = SimpleNamespace(entry_id="entry", options={}, data={CONF_POLL_INTERVAL: 60})
+    coordinator = CodexRatesCoordinator(SimpleNamespace(data={}), entry)
     coordinator._provider = _Provider()
     # Equal to now → cooldown no longer blocks; fetch proceeds and clears state.
     coordinator.rate_limit_cooldown_until = now

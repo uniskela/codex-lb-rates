@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import logging
-from math import isfinite
+from math import ceil, isfinite
 
 import aiohttp
 from homeassistant.config_entries import ConfigEntry
@@ -49,6 +49,7 @@ from .providers.chatgpt import ChatGptProvider
 from .providers.codex_lb import CodexLbProvider
 
 _LOGGER = logging.getLogger(__name__)
+_COOLDOWNS = f"{DOMAIN}_cooldowns"
 
 
 class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
@@ -74,6 +75,22 @@ class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
         # Explicit so cooldown logic works under HA stubs and after temporary backoff.
         self.update_interval = timedelta(seconds=self.poll_interval_seconds)
         self.entry = entry
+        # Keep active deadlines outside the coordinator: HA recreates it on
+        # options reload and when retrying a failed first refresh.
+        self._cooldowns = hass.data.setdefault(_COOLDOWNS, {})
+        if saved := self._cooldowns.get(entry.entry_id):
+            (
+                self.rate_limit_cooldown_until,
+                self.last_rate_limit_at,
+                self.last_rate_limit_retry_after,
+            ) = saved
+            remaining = (
+                self.rate_limit_cooldown_until - datetime.now(timezone.utc)
+            ).total_seconds()
+            if remaining > 0:
+                self.update_interval = timedelta(seconds=ceil(remaining))
+            else:
+                self._clear_rate_limit_cooldown()
         self._provider: CodexLbProvider | ChatGptProvider | None = None
         # Private session for Codex-LB so dashboard cookies never enter the shared HA jar.
         self._lb_session: aiohttp.ClientSession | None = None
@@ -133,7 +150,7 @@ class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
         raw = DEFAULT_RATE_LIMIT_COOLDOWN if retry_after is None else float(retry_after)
         if not isfinite(raw) or raw < 0:
             raw = DEFAULT_RATE_LIMIT_COOLDOWN
-        return max(MIN_POLL_INTERVAL, min(int(raw), MAX_RATE_LIMIT_COOLDOWN))
+        return max(MIN_POLL_INTERVAL, min(ceil(raw), MAX_RATE_LIMIT_COOLDOWN))
 
     def _apply_rate_limit_cooldown(self, err: CodexRatesRateLimitError) -> int:
         """Stretch poll interval and record skip-until for an HTTP 429."""
@@ -142,6 +159,9 @@ class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
         self.last_rate_limit_at = now
         self.last_rate_limit_retry_after = err.retry_after
         self.rate_limit_cooldown_until = now + timedelta(seconds=seconds)
+        self._cooldowns[self.entry.entry_id] = (
+            self.rate_limit_cooldown_until, now, err.retry_after
+        )
         self.update_interval = timedelta(seconds=seconds)
         _LOGGER.warning(
             "Provider HTTP rate limited (429); cooling down for %ss until %s "
@@ -154,6 +174,7 @@ class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
     def _clear_rate_limit_cooldown(self) -> None:
         """Restore the configured poll interval after a successful fetch."""
         self.rate_limit_cooldown_until = None
+        self._cooldowns.pop(self.entry.entry_id, None)
         self.update_interval = timedelta(seconds=self.poll_interval_seconds)
 
     def _rate_limit_update_failed(self, *, remaining_seconds: int | None = None) -> UpdateFailed:
@@ -161,7 +182,7 @@ class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
         until_text = until.isoformat() if until is not None else "unknown"
         if remaining_seconds is None and until is not None:
             remaining_seconds = max(
-                1, int((until - datetime.now(timezone.utc)).total_seconds())
+                1, ceil((until - datetime.now(timezone.utc)).total_seconds())
             )
         remaining_text = (
             f"{remaining_seconds}s remaining; " if remaining_seconds is not None else ""
@@ -179,7 +200,7 @@ class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
             and now < self.rate_limit_cooldown_until
         ):
             remaining = max(
-                1, int((self.rate_limit_cooldown_until - now).total_seconds())
+                1, ceil((self.rate_limit_cooldown_until - now).total_seconds())
             )
             # Keep interval aligned with remaining cooldown for the next schedule.
             self.update_interval = timedelta(seconds=remaining)
@@ -190,8 +211,7 @@ class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
             and now >= self.rate_limit_cooldown_until
         ):
             # Cooldown elapsed; drop the stamp before attempting a fresh poll.
-            self.rate_limit_cooldown_until = None
-            self.update_interval = timedelta(seconds=self.poll_interval_seconds)
+            self._clear_rate_limit_cooldown()
 
         if self._provider is None:
             self._provider = self._build_provider()
