@@ -327,7 +327,7 @@ class CodexLbProvider:
             _first(item, "available_reset_credits", "availableResetCredits")
         )
         additional_quotas = _parse_additional_quotas(item)
-        spark = next((quota for quota in additional_quotas if quota.is_spark), None)
+        spark = _select_spark_quota(additional_quotas)
         spark_primary = spark.primary if spark is not None else None
         spark_secondary = spark.secondary if spark is not None else None
         request_usage = _parse_request_usage(item)
@@ -486,21 +486,31 @@ def _parse_additional_quotas(item: dict[str, Any]) -> list[AdditionalQuota]:
     return mapped
 
 
+def _select_spark_quota(
+    quotas: list[AdditionalQuota],
+) -> AdditionalQuota | None:
+    """Prefer the canonical Spark row; fall back to Spark display aliases."""
+    for quota in quotas:
+        if quota.is_spark:
+            return quota
+    for quota in quotas:
+        if quota.is_spark_alias:
+            return quota
+    return None
+
+
 def _parse_additional_window(
     window: dict[str, Any],
 ) -> AdditionalQuotaWindow | None:
     if not window:
         return None
-    used = _as_float(_first(window, "used_percent", "usedPercent"))
-    remaining = _remaining_from_window(window)
-    if used is None and remaining is None:
-        return None
-    return AdditionalQuotaWindow(
-        used_percent=used,
-        remaining_percent=remaining,
+    parsed = AdditionalQuotaWindow(
+        used_percent=_as_float(_first(window, "used_percent", "usedPercent")),
+        remaining_percent=_remaining_from_window(window),
         reset_at=parse_iso_datetime(_first(window, "reset_at", "resetAt")),
         window_minutes=_as_int(_first(window, "window_minutes", "windowMinutes")),
     )
+    return parsed if parsed.has_data else None
 
 
 def _parse_request_usage(item: dict[str, Any]) -> dict[str, Any]:

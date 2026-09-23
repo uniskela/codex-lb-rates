@@ -96,7 +96,7 @@ The integration normalizes account status into these states:
 
 The original provider value is retained in the `raw_status` attribute.
 
-When Codex-LB reports `additionalQuotas`, the status sensor also includes an `additional_quotas` attribute: a list of structured rows (Spark and any other gated quotas) with keys, labels, routing policy, and primary/secondary window used % / reset / duration.
+When Codex-LB reports `additionalQuotas`, the status sensor also includes an `additional_quotas` attribute (always, not only when rich sensors are enabled): a list of structured rows (Spark and any other gated quotas) with keys, labels, routing policy, and primary/secondary window used % / reset / duration.
 
 ## Reset credits
 

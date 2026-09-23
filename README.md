@@ -15,7 +15,7 @@ Home Assistant integration for monitoring **Codex quota remaining and reset time
 - **Optional quota windows** — monthly and GPT-5.3-Codex-Spark sensors appear only when Codex-LB actually reports them.
 - **Capacity-aware pool gauges** — measured accounts, including exhausted accounts at 0%, contribute to the pool aggregate; capacity weighting is used when valid weights are available for every reporting account.
 - **Reset display choice** — countdown by default, or local absolute date/time while keeping the exact ISO timestamp in `resets_at`.
-- **Optional rich diagnostics** — plan, credit balance, and last refresh.
+- **Optional rich diagnostics** — plan, credit balance, last refresh, and request-usage totals.
 - **Quota-alert blueprint** — low, exceeded, and refreshed notifications with hysteresis and remembered alert state.
 - **Bundled Lovelace card** — optional `custom:codex-rates-card` for pool and remaining-% sensors (served from the integration `www/` folder).
 
@@ -74,7 +74,7 @@ The blueprint requires a Home Assistant **Text helper** for its alert memory and
 Open **Settings → Devices & services → Codex-LB Rates → Configure**.
 
 - **Poll interval** — default 60 seconds; minimum 30 seconds.
-- **Enable rich sensors** — plan, credit balance, and last-refresh diagnostics when available.
+- **Enable rich sensors** — plan, credit balance, last-refresh, and request-count diagnostics when available.
 - **Reset sensor display** — countdown or local absolute date/time.
 
 ## Security

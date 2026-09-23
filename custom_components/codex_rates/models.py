@@ -7,9 +7,11 @@ from datetime import datetime, timezone
 from math import isfinite
 from typing import Any
 
-# Codex-LB / ChatGPT additional-quota keys treated as the Spark model window.
-_SPARK_QUOTA_KEYS = frozenset({"codex_spark", "codex_other", "gpt-5.3-codex-spark"})
+# Codex-LB additional-quota identity for dedicated Spark sensors (primary row).
+_SPARK_QUOTA_KEYS = frozenset({"codex_spark"})
 _SPARK_METERED_FEATURES = frozenset({"codex_bengalfox"})
+# Display aliases that Codex-LB also labels as Spark; never preferred over codex_spark.
+_SPARK_ALIAS_KEYS = frozenset({"codex_other", "gpt-5.3-codex-spark"})
 
 
 @dataclass(slots=True)
@@ -34,6 +36,16 @@ class AdditionalQuotaWindow:
             payload["window_minutes"] = self.window_minutes
         return payload
 
+    @property
+    def has_data(self) -> bool:
+        """True when any window field was reported."""
+        return (
+            self.used_percent is not None
+            or self.remaining_percent is not None
+            or self.reset_at is not None
+            or self.window_minutes is not None
+        )
+
 
 @dataclass(slots=True)
 class AdditionalQuota:
@@ -49,7 +61,7 @@ class AdditionalQuota:
 
     @property
     def is_spark(self) -> bool:
-        """True when this row is the known Codex Spark gated quota."""
+        """True when this row is the primary Codex Spark gated quota."""
         key = (self.quota_key or "").strip().lower()
         feature = (self.metered_feature or "").strip().lower()
         limit = (self.limit_name or "").strip().lower()
@@ -58,6 +70,13 @@ class AdditionalQuota:
             or limit in _SPARK_QUOTA_KEYS
             or feature in _SPARK_METERED_FEATURES
         )
+
+    @property
+    def is_spark_alias(self) -> bool:
+        """True for secondary Spark-labeled keys (e.g. codex_other)."""
+        key = (self.quota_key or "").strip().lower()
+        limit = (self.limit_name or "").strip().lower()
+        return key in _SPARK_ALIAS_KEYS or limit in _SPARK_ALIAS_KEYS
 
     def as_dict(self) -> dict[str, Any]:
         """Serialize for Home Assistant attributes."""

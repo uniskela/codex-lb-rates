@@ -337,6 +337,63 @@ async def test_codex_lb_maps_request_usage_and_non_spark_additional_quotas(
 
 
 @pytest.mark.asyncio
+async def test_codex_lb_prefers_canonical_spark_and_keeps_reset_only_windows(
+    aiohttp_client,
+) -> None:
+    async def accounts(request: web.Request) -> web.Response:
+        return web.json_response(
+            {
+                "accounts": [
+                    {
+                        "accountId": "pro",
+                        "status": "active",
+                        "additionalQuotas": [
+                            {
+                                "quotaKey": "codex_other",
+                                "limitName": "codex_other",
+                                "primaryWindow": {
+                                    "usedPercent": 90,
+                                    "windowMinutes": 300,
+                                },
+                            },
+                            {
+                                "quotaKey": "codex_spark",
+                                "meteredFeature": "codex_bengalfox",
+                                "primaryWindow": {
+                                    "usedPercent": 10,
+                                    "windowMinutes": 300,
+                                },
+                                "secondaryWindow": {
+                                    "resetAt": 1789807641,
+                                    "windowMinutes": 10080,
+                                },
+                            },
+                        ],
+                    }
+                ]
+            }
+        )
+
+    app = web.Application()
+    app.router.add_get("/api/accounts", accounts)
+    client = await aiohttp_client(app)
+    async with aiohttp.ClientSession() as session:
+        snapshot = await CodexLbProvider(
+            session, base_url=str(client.make_url("/")).rstrip("/")
+        )._fetch_accounts()
+
+    account = snapshot.accounts[0]
+    assert account.remaining_spark_5h == 90
+    assert account.used_spark_5h == 10
+    assert account.reset_spark_weekly is not None
+    assert account.window_minutes_spark_weekly == 10080
+    assert account.remaining_spark_weekly is None
+    assert len(account.additional_quotas) == 2
+    assert account.additional_quotas[1].secondary is not None
+    assert account.additional_quotas[1].secondary.reset_at is not None
+
+
+@pytest.mark.asyncio
 async def test_codex_lb_guest_login(aiohttp_client) -> None:
     state = {"authed": False}
 
