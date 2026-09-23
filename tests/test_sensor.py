@@ -377,6 +377,68 @@ def test_used_percent_sensors_option_gates_account_and_pool_keys() -> None:
     assert pool.name == "All accounts 5h used"
 
 
+def test_used_percent_derives_from_remaining_when_used_missing() -> None:
+    from custom_components.codex_rates import sensor as sensor_mod
+    from custom_components.codex_rates.const import CONF_USED_PERCENT_SENSORS
+    from custom_components.codex_rates.models import compute_pool_aggregate
+    from custom_components.codex_rates.sensor import CodexAccountSensor
+
+    account = AccountQuota(
+        account_id="spark_only",
+        remaining_spark_5h=40,
+        window_minutes_spark_5h=300,
+    )
+    entry = SimpleNamespace(
+        entry_id="entry",
+        data={CONF_MODE: MODE_CODEX_LB},
+        options={CONF_USED_PERCENT_SENSORS: True},
+    )
+    snapshot = ProviderSnapshot(
+        accounts=[account], pool=compute_pool_aggregate([account])
+    )
+    description = next(d for d in ACCOUNT_SENSORS if d.key == "used_spark_5h")
+    sensor = CodexAccountSensor(
+        SimpleNamespace(data=snapshot), entry, "spark_only", description
+    )
+    assert sensor.native_value == 60
+    assert "entry_spark_only_used_spark_5h" in {
+        e.unique_id
+        for e in sensor_mod._snapshot_sensors(
+            SimpleNamespace(data=snapshot), entry, snapshot
+        )
+    }
+
+
+def test_pool_used_inverts_multi_account_min_max() -> None:
+    from custom_components.codex_rates.const import CONF_USED_PERCENT_SENSORS
+    from custom_components.codex_rates.models import compute_pool_aggregate
+    from custom_components.codex_rates.sensor import CodexPoolSensor
+
+    accounts = [
+        AccountQuota(account_id="low", remaining_5h=10, used_5h=90, capacity_5h=1),
+        AccountQuota(account_id="high", remaining_5h=90, used_5h=10, capacity_5h=1),
+    ]
+    snapshot = ProviderSnapshot(
+        accounts=accounts, pool=compute_pool_aggregate(accounts)
+    )
+    entry = SimpleNamespace(
+        entry_id="entry",
+        data={CONF_MODE: MODE_CODEX_LB},
+        options={CONF_USED_PERCENT_SENSORS: True},
+    )
+    pool = CodexPoolSensor(
+        SimpleNamespace(data=snapshot),
+        entry,
+        "used_5h",
+        "All accounts 5h used",
+    )
+    assert pool.native_value == 50
+    attrs = pool.extra_state_attributes
+    assert attrs is not None
+    assert attrs["min"] == 10
+    assert attrs["max"] == 90
+
+
 def test_codex_lb_includes_monthly_when_present() -> None:
     keys = {
         d.key

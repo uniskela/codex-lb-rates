@@ -268,7 +268,7 @@ ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
         name="5h used",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda a: a.used_5h,
+        value_fn=lambda a: _used_or_from_remaining(a.used_5h, a.remaining_5h),
         attrs_fn=lambda a: _used_pct_attrs(
             a.remaining_5h, a.window_minutes_5h, a
         ),
@@ -281,7 +281,7 @@ ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
         name="Weekly used",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda a: a.used_weekly,
+        value_fn=lambda a: _used_or_from_remaining(a.used_weekly, a.remaining_weekly),
         attrs_fn=lambda a: _used_pct_attrs(
             a.remaining_weekly, a.window_minutes_weekly, a
         ),
@@ -294,7 +294,9 @@ ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
         name="Monthly used",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda a: a.used_monthly,
+        value_fn=lambda a: _used_or_from_remaining(
+            a.used_monthly, a.remaining_monthly
+        ),
         attrs_fn=lambda a: _used_pct_attrs(
             a.remaining_monthly, a.window_minutes_monthly, a
         ),
@@ -367,7 +369,9 @@ ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
         name="Spark 5h used",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda a: a.used_spark_5h,
+        value_fn=lambda a: _used_or_from_remaining(
+            a.used_spark_5h, a.remaining_spark_5h
+        ),
         attrs_fn=lambda a: _used_pct_attrs(
             a.remaining_spark_5h, a.window_minutes_spark_5h, a
         ),
@@ -381,7 +385,9 @@ ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
         name="Spark weekly used",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda a: a.used_spark_weekly,
+        value_fn=lambda a: _used_or_from_remaining(
+            a.used_spark_weekly, a.remaining_spark_weekly
+        ),
         attrs_fn=lambda a: _used_pct_attrs(
             a.remaining_spark_weekly, a.window_minutes_spark_weekly, a
         ),
@@ -509,22 +515,47 @@ def _include_description(
     return not (description.key in _MONTHLY_SENSOR_KEYS and not has_monthly)
 
 
+def _used_or_from_remaining(
+    used: float | None, remaining: float | None
+) -> float | None:
+    """Prefer provider used %; otherwise derive from remaining when only that exists."""
+    if used is not None:
+        return used
+    return _invert_percent(remaining)
+
+
 def _account_supports_description(account: AccountQuota, key: str) -> bool:
     """Create quota entities only when this account actually reports that window."""
     fields = {
         "remaining_5h": account.remaining_5h,
         "remaining_weekly": account.remaining_weekly,
         "remaining_monthly": account.remaining_monthly,
-        "used_5h": account.used_5h,
-        "used_weekly": account.used_weekly,
-        "used_monthly": account.used_monthly,
+        "used_5h": account.used_5h if account.used_5h is not None else account.remaining_5h,
+        "used_weekly": (
+            account.used_weekly
+            if account.used_weekly is not None
+            else account.remaining_weekly
+        ),
+        "used_monthly": (
+            account.used_monthly
+            if account.used_monthly is not None
+            else account.remaining_monthly
+        ),
         "reset_5h": account.reset_5h,
         "reset_weekly": account.reset_weekly,
         "reset_monthly": account.reset_monthly,
         "remaining_spark_5h": account.remaining_spark_5h,
         "remaining_spark_weekly": account.remaining_spark_weekly,
-        "used_spark_5h": account.used_spark_5h,
-        "used_spark_weekly": account.used_spark_weekly,
+        "used_spark_5h": (
+            account.used_spark_5h
+            if account.used_spark_5h is not None
+            else account.remaining_spark_5h
+        ),
+        "used_spark_weekly": (
+            account.used_spark_weekly
+            if account.used_spark_weekly is not None
+            else account.remaining_spark_weekly
+        ),
         "reset_spark_5h": account.reset_spark_5h,
         "reset_spark_weekly": account.reset_spark_weekly,
         "request_count": account.request_count,
@@ -854,7 +885,7 @@ def _invert_percent(value: float | None) -> float | None:
     """Convert remaining % aggregate stats to used % (and the reverse)."""
     if value is None:
         return None
-    return round(100.0 - float(value), 2)
+    return round(max(0.0, min(100.0, 100.0 - float(value))), 2)
 
 
 def _account_from_data(
