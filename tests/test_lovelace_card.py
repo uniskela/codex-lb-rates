@@ -142,8 +142,10 @@ async def test_async_setup_lovelace_card_registers_static_path_and_resource(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("same_url", [False, True])
 async def test_async_setup_lovelace_card_updates_stale_resource(
     monkeypatch: pytest.MonkeyPatch,
+    same_url: bool,
 ) -> None:
     _, ResourceStorageCollection = _install_frontend_stubs(monkeypatch)
     assert ResourceStorageCollection is not None
@@ -154,8 +156,8 @@ async def test_async_setup_lovelace_card_updates_stale_resource(
             self._items = [
                 {
                     "id": "res-1",
-                    "res_type": "module",
-                    "url": (
+                    "type": "js" if same_url else "module",
+                    "url": _card_url() if same_url else (
                         f"{lovelace_mod.CARD_URL_BASE}/"
                         f"{lovelace_mod.CARD_FILENAME}?v=oldoldol"
                     ),

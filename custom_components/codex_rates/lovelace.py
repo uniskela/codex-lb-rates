@@ -47,7 +47,7 @@ async def async_setup_lovelace_card(hass: HomeAssistant) -> None:
 
 async def _async_setup_lovelace_card(hass: HomeAssistant) -> None:
     www_dir = Path(__file__).parent / "www"
-    if not www_dir.is_dir():
+    if not await hass.async_add_executor_job(www_dir.is_dir):
         _LOGGER.warning("Lovelace card directory missing: %s", www_dir)
         return
 
@@ -144,7 +144,7 @@ async def _async_register_resource(
             item_url = item.get("url", "")
             if item_url.partition("?")[0] != base_url:
                 continue
-            if item_url != url:
+            if item_url != url or item.get("type") != "module":
                 await resources.async_update_item(
                     item["id"], {"res_type": "module", "url": url}
                 )
