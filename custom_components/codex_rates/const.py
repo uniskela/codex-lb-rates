@@ -18,6 +18,7 @@ CONF_ACCOUNT_ID = "account_id"
 CONF_EMAIL = "email"
 CONF_POLL_INTERVAL = "poll_interval"
 CONF_RICH_SENSORS = "rich_sensors"
+CONF_USED_PERCENT_SENSORS = "used_percent_sensors"
 CONF_RESET_DISPLAY = "reset_display"
 CONF_VERIFY_SSL = "verify_ssl"
 
@@ -44,6 +45,7 @@ DEFAULT_RATE_LIMIT_COOLDOWN = 60
 # Cap temporary backoff so a pathological Retry-After cannot stall forever.
 MAX_RATE_LIMIT_COOLDOWN = 900
 DEFAULT_RICH_SENSORS = False
+DEFAULT_USED_PERCENT_SENSORS = False
 DEFAULT_RESET_DISPLAY = RESET_DISPLAY_COUNTDOWN
 DEFAULT_VERIFY_SSL = True
 
@@ -63,6 +65,7 @@ LB_SESSION_COOKIES = (
 )
 
 ATTR_USED_PERCENT = "used_percent"
+ATTR_REMAINING_PERCENT = "remaining_percent"
 ATTR_WINDOW_MINUTES = "window_minutes"
 ATTR_BY_MINUTES = "by_minutes"
 ATTR_ACCOUNT_ID = "account_id"

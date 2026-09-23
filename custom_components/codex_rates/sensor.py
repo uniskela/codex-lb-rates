@@ -34,6 +34,7 @@ from .const import (
     ATTR_EMAIL,
     ATTR_MAX,
     ATTR_MIN,
+    ATTR_REMAINING_PERCENT,
     ATTR_RESET_CREDITS_EXPIRE,
     ATTR_RESETS_AT,
     ATTR_TOTAL_COST_USD,
@@ -43,8 +44,10 @@ from .const import (
     CONF_MODE,
     CONF_RESET_DISPLAY,
     CONF_RICH_SENSORS,
+    CONF_USED_PERCENT_SENSORS,
     DEFAULT_RESET_DISPLAY,
     DEFAULT_RICH_SENSORS,
+    DEFAULT_USED_PERCENT_SENSORS,
     DOMAIN,
     MODE_CODEX_LB,
     POOL_DEVICE_ID,
@@ -76,6 +79,7 @@ class CodexRatesSensorDescription(SensorEntityDescription):
     value_fn: Callable[[AccountQuota], float | str | datetime | None]
     attrs_fn: Callable[[AccountQuota], dict[str, Any]] | None = None
     rich: bool = False
+    used_percent: bool = False
     codex_lb_only: bool = False
 
 
@@ -145,14 +149,19 @@ _WINDOW_LABELS: tuple[tuple[int, str], ...] = (
 )
 _WINDOW_MINUTES_ATTRS = {
     "remaining_5h": "window_minutes_5h",
+    "used_5h": "window_minutes_5h",
     "reset_5h": "window_minutes_5h",
     "remaining_weekly": "window_minutes_weekly",
+    "used_weekly": "window_minutes_weekly",
     "reset_weekly": "window_minutes_weekly",
     "remaining_monthly": "window_minutes_monthly",
+    "used_monthly": "window_minutes_monthly",
     "reset_monthly": "window_minutes_monthly",
     "remaining_spark_5h": "window_minutes_spark_5h",
+    "used_spark_5h": "window_minutes_spark_5h",
     "reset_spark_5h": "window_minutes_spark_5h",
     "remaining_spark_weekly": "window_minutes_spark_weekly",
+    "used_spark_weekly": "window_minutes_spark_weekly",
     "reset_spark_weekly": "window_minutes_spark_weekly",
 }
 
@@ -184,8 +193,25 @@ def _account_window_name(account: AccountQuota, key: str) -> str | None:
     if label is None:
         return None
     prefix = "Spark " if "spark" in key else ""
-    suffix = "resets" if key.startswith("reset_") else "remaining"
+    if key.startswith("reset_"):
+        suffix = "resets"
+    elif key.startswith("used_"):
+        suffix = "used"
+    else:
+        suffix = "remaining"
     return f"{prefix}{label} {suffix}"
+
+
+def _pool_window_metric(key: str) -> str:
+    """Return the pool sensor metric word for this key (remaining or used)."""
+    return "used" if key.startswith("used_") else "remaining"
+
+
+def _pool_aggregate_key(key: str) -> str:
+    """Map a pool sensor key onto the PoolAggregate remaining_* field name."""
+    if key.startswith("used_"):
+        return f"remaining_{key[len('used_'):]}"
+    return key
 
 
 def _pool_window_name(
@@ -200,7 +226,7 @@ def _pool_window_name(
     if label != "5h":
         label = label.lower()
     prefix = "Spark " if "spark" in key else ""
-    return f"All accounts {prefix}{label} remaining"
+    return f"All accounts {prefix}{label} {_pool_window_metric(key)}"
 
 
 ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
@@ -233,6 +259,46 @@ ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda a: a.remaining_monthly,
         attrs_fn=lambda a: _pct_attrs(a.used_monthly, a.window_minutes_monthly, a),
+        codex_lb_only=True,
+    ),
+    CodexRatesSensorDescription(
+        key="used_5h",
+        icon="mdi:percent",
+        translation_key="used_5h",
+        name="5h used",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda a: a.used_5h,
+        attrs_fn=lambda a: _used_pct_attrs(
+            a.remaining_5h, a.window_minutes_5h, a
+        ),
+        used_percent=True,
+    ),
+    CodexRatesSensorDescription(
+        key="used_weekly",
+        icon="mdi:percent",
+        translation_key="used_weekly",
+        name="Weekly used",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda a: a.used_weekly,
+        attrs_fn=lambda a: _used_pct_attrs(
+            a.remaining_weekly, a.window_minutes_weekly, a
+        ),
+        used_percent=True,
+    ),
+    CodexRatesSensorDescription(
+        key="used_monthly",
+        icon="mdi:percent",
+        translation_key="used_monthly",
+        name="Monthly used",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda a: a.used_monthly,
+        attrs_fn=lambda a: _used_pct_attrs(
+            a.remaining_monthly, a.window_minutes_monthly, a
+        ),
+        used_percent=True,
         codex_lb_only=True,
     ),
     CodexRatesSensorDescription(
@@ -292,6 +358,34 @@ ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
         attrs_fn=lambda a: _pct_attrs(
             a.used_spark_weekly, a.window_minutes_spark_weekly, a
         ),
+        codex_lb_only=True,
+    ),
+    CodexRatesSensorDescription(
+        key="used_spark_5h",
+        icon="mdi:percent",
+        translation_key="used_spark_5h",
+        name="Spark 5h used",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda a: a.used_spark_5h,
+        attrs_fn=lambda a: _used_pct_attrs(
+            a.remaining_spark_5h, a.window_minutes_spark_5h, a
+        ),
+        used_percent=True,
+        codex_lb_only=True,
+    ),
+    CodexRatesSensorDescription(
+        key="used_spark_weekly",
+        icon="mdi:percent",
+        translation_key="used_spark_weekly",
+        name="Spark weekly used",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda a: a.used_spark_weekly,
+        attrs_fn=lambda a: _used_pct_attrs(
+            a.remaining_spark_weekly, a.window_minutes_spark_weekly, a
+        ),
+        used_percent=True,
         codex_lb_only=True,
     ),
     CodexRatesSensorDescription(
@@ -377,10 +471,17 @@ _POOL_SENSOR_KEYS = frozenset(
         "remaining_monthly",
         "remaining_spark_5h",
         "remaining_spark_weekly",
+        "used_5h",
+        "used_weekly",
+        "used_monthly",
+        "used_spark_5h",
+        "used_spark_weekly",
     }
 )
 _ACCOUNT_SENSOR_KEYS = frozenset(desc.key for desc in ACCOUNT_SENSORS)
-_MONTHLY_SENSOR_KEYS = frozenset({"remaining_monthly", "reset_monthly"})
+_MONTHLY_SENSOR_KEYS = frozenset(
+    {"remaining_monthly", "reset_monthly", "used_monthly"}
+)
 
 
 def snapshot_has_monthly(snapshot: ProviderSnapshot) -> bool:
@@ -395,10 +496,13 @@ def _include_description(
     description: CodexRatesSensorDescription,
     *,
     rich: bool,
+    used_percent_sensors: bool = False,
     is_codex_lb: bool,
     has_monthly: bool,
 ) -> bool:
     if description.rich and not rich:
+        return False
+    if description.used_percent and not used_percent_sensors:
         return False
     if description.codex_lb_only and not is_codex_lb:
         return False
@@ -411,11 +515,16 @@ def _account_supports_description(account: AccountQuota, key: str) -> bool:
         "remaining_5h": account.remaining_5h,
         "remaining_weekly": account.remaining_weekly,
         "remaining_monthly": account.remaining_monthly,
+        "used_5h": account.used_5h,
+        "used_weekly": account.used_weekly,
+        "used_monthly": account.used_monthly,
         "reset_5h": account.reset_5h,
         "reset_weekly": account.reset_weekly,
         "reset_monthly": account.reset_monthly,
         "remaining_spark_5h": account.remaining_spark_5h,
         "remaining_spark_weekly": account.remaining_spark_weekly,
+        "used_spark_5h": account.used_spark_5h,
+        "used_spark_weekly": account.used_spark_weekly,
         "reset_spark_5h": account.reset_spark_5h,
         "reset_spark_weekly": account.reset_spark_weekly,
         "request_count": account.request_count,
@@ -429,12 +538,20 @@ _POOL_NAMES = {
     "remaining_monthly": "All accounts monthly remaining",
     "remaining_spark_5h": "All accounts Spark 5h remaining",
     "remaining_spark_weekly": "All accounts Spark weekly remaining",
+    "used_5h": "All accounts 5h used",
+    "used_weekly": "All accounts weekly used",
+    "used_monthly": "All accounts monthly used",
+    "used_spark_5h": "All accounts Spark 5h used",
+    "used_spark_weekly": "All accounts Spark weekly used",
 }
 
 
 def _snapshot_sensors(coordinator, entry, snapshot):
     """The desired entities for one successful provider response."""
     rich = entry.options.get(CONF_RICH_SENSORS, DEFAULT_RICH_SENSORS)
+    used_percent_sensors = entry.options.get(
+        CONF_USED_PERCENT_SENSORS, DEFAULT_USED_PERCENT_SENSORS
+    )
     is_codex_lb = entry.data.get(CONF_MODE) == MODE_CODEX_LB
     has_monthly = snapshot_has_monthly(snapshot)
     for account in snapshot.accounts:
@@ -442,6 +559,7 @@ def _snapshot_sensors(coordinator, entry, snapshot):
             if _include_description(
                 description,
                 rich=rich,
+                used_percent_sensors=used_percent_sensors,
                 is_codex_lb=is_codex_lb,
                 has_monthly=has_monthly,
             ) and _account_supports_description(account, description.key):
@@ -450,7 +568,10 @@ def _snapshot_sensors(coordinator, entry, snapshot):
                 )
     if is_codex_lb and snapshot.pool is not None:
         for key, name in _POOL_NAMES.items():
-            if getattr(snapshot.pool, key).sample_count:
+            if key.startswith("used_") and not used_percent_sensors:
+                continue
+            window = getattr(snapshot.pool, _pool_aggregate_key(key))
+            if window.sample_count:
                 yield CodexPoolSensor(coordinator, entry, key, name)
 
 
@@ -526,6 +647,9 @@ def allowed_sensor_keys(
 ) -> set[str]:
     """Sensor keys that should exist for this config entry's mode/options/data."""
     rich = entry.options.get(CONF_RICH_SENSORS, DEFAULT_RICH_SENSORS)
+    used_percent_sensors = entry.options.get(
+        CONF_USED_PERCENT_SENSORS, DEFAULT_USED_PERCENT_SENSORS
+    )
     is_codex_lb = entry.data.get(CONF_MODE) == MODE_CODEX_LB
     has_monthly = (
         snapshot_has_monthly(snapshot) if snapshot is not None else is_codex_lb
@@ -536,6 +660,7 @@ def allowed_sensor_keys(
         if _include_description(
             description,
             rich=rich,
+            used_percent_sensors=used_percent_sensors,
             is_codex_lb=is_codex_lb,
             has_monthly=has_monthly,
         )
@@ -544,6 +669,10 @@ def allowed_sensor_keys(
         keys |= {"remaining_5h", "remaining_weekly"}
         if has_monthly:
             keys.add("remaining_monthly")
+        if used_percent_sensors:
+            keys |= {"used_5h", "used_weekly"}
+            if has_monthly:
+                keys.add("used_monthly")
     return keys
 
 
@@ -590,8 +719,9 @@ def _unsupported_quota_window(
     if account_id is None or sensor_key is None:
         return False
     if account_id == POOL_DEVICE_ID and sensor_key in _POOL_SENSOR_KEYS:
+        account_field = _pool_aggregate_key(sensor_key)
         return not any(
-            getattr(item, sensor_key) is not None for item in snapshot.accounts
+            getattr(item, account_field) is not None for item in snapshot.accounts
         )
     account = next(
         (item for item in snapshot.accounts if item.account_id == account_id),
@@ -704,6 +834,27 @@ def _pct_attrs(
     if window_minutes is not None:
         attrs[ATTR_WINDOW_MINUTES] = window_minutes
     return attrs
+
+
+def _used_pct_attrs(
+    remaining: float | None, window_minutes: int | None, account: AccountQuota
+) -> dict[str, Any]:
+    attrs: dict[str, Any] = {
+        ATTR_ACCOUNT_ID: account.account_id,
+        ATTR_EMAIL: account.email,
+    }
+    if remaining is not None:
+        attrs[ATTR_REMAINING_PERCENT] = remaining
+    if window_minutes is not None:
+        attrs[ATTR_WINDOW_MINUTES] = window_minutes
+    return attrs
+
+
+def _invert_percent(value: float | None) -> float | None:
+    """Convert remaining % aggregate stats to used % (and the reverse)."""
+    if value is None:
+        return None
+    return round(100.0 - float(value), 2)
 
 
 def _account_from_data(
@@ -828,13 +979,14 @@ class CodexPoolSensor(CoordinatorEntity[CodexRatesCoordinator], SensorEntity):
         data = self.coordinator.data
         if data is None or data.pool is None:
             return None
-        if self._key == "remaining_5h":
+        aggregate_key = _pool_aggregate_key(self._key)
+        if aggregate_key == "remaining_5h":
             return data.pool.remaining_5h
-        if self._key == "remaining_weekly":
+        if aggregate_key == "remaining_weekly":
             return data.pool.remaining_weekly
-        if self._key == "remaining_spark_5h":
+        if aggregate_key == "remaining_spark_5h":
             return data.pool.remaining_spark_5h
-        if self._key == "remaining_spark_weekly":
+        if aggregate_key == "remaining_spark_weekly":
             return data.pool.remaining_spark_weekly
         return data.pool.remaining_monthly
 
@@ -848,7 +1000,11 @@ class CodexPoolSensor(CoordinatorEntity[CodexRatesCoordinator], SensorEntity):
     @property
     def native_value(self) -> float | None:
         window = self._window()
-        return None if window is None else window.mean
+        if window is None:
+            return None
+        if self._key.startswith("used_"):
+            return _invert_percent(window.mean)
+        return window.mean
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
@@ -856,9 +1012,10 @@ class CodexPoolSensor(CoordinatorEntity[CodexRatesCoordinator], SensorEntity):
         window = self._window()
         if data is None or data.pool is None or window is None:
             return None
+        used = self._key.startswith("used_")
         attrs: dict[str, Any] = {
-            ATTR_MIN: window.min,
-            ATTR_MAX: window.max,
+            ATTR_MIN: _invert_percent(window.max) if used else window.min,
+            ATTR_MAX: _invert_percent(window.min) if used else window.max,
             ATTR_ACCOUNT_COUNT: data.pool.account_count,
             ATTR_ACTIVE_COUNT: data.pool.active_count,
             "sample_count": window.sample_count,
@@ -868,7 +1025,10 @@ class CodexPoolSensor(CoordinatorEntity[CodexRatesCoordinator], SensorEntity):
             attrs[ATTR_WINDOW_MINUTES] = window.window_minutes
         if window.by_minutes:
             attrs[ATTR_BY_MINUTES] = {
-                str(minutes): mean for minutes, mean in window.by_minutes.items()
+                str(minutes): (
+                    _invert_percent(mean) if used else mean
+                )
+                for minutes, mean in window.by_minutes.items()
             }
         if "spark" in self._key:
             attrs["quota_model"] = "gpt-5.3-codex-spark"

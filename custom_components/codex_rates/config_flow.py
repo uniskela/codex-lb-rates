@@ -36,11 +36,13 @@ from .const import (
     CONF_RESET_DISPLAY,
     CONF_RICH_SENSORS,
     CONF_TOTP_SECRET,
+    CONF_USED_PERCENT_SENSORS,
     CONF_VERIFY_SSL,
     DEFAULT_LB_LOGIN,
     DEFAULT_POLL_INTERVAL,
     DEFAULT_RESET_DISPLAY,
     DEFAULT_RICH_SENSORS,
+    DEFAULT_USED_PERCENT_SENSORS,
     DEFAULT_VERIFY_SSL,
     DOMAIN,
     LB_LOGIN_ADMIN,
@@ -149,6 +151,7 @@ class CodexRatesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         options={
                             CONF_POLL_INTERVAL: DEFAULT_POLL_INTERVAL,
                             CONF_RICH_SENSORS: DEFAULT_RICH_SENSORS,
+                            CONF_USED_PERCENT_SENSORS: DEFAULT_USED_PERCENT_SENSORS,
                             CONF_RESET_DISPLAY: DEFAULT_RESET_DISPLAY,
                         },
                     )
@@ -423,13 +426,14 @@ class CodexRatesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             options={
                 CONF_POLL_INTERVAL: DEFAULT_POLL_INTERVAL,
                 CONF_RICH_SENSORS: DEFAULT_RICH_SENSORS,
+                CONF_USED_PERCENT_SENSORS: DEFAULT_USED_PERCENT_SENSORS,
                 CONF_RESET_DISPLAY: DEFAULT_RESET_DISPLAY,
             },
         )
 
 
 class CodexRatesOptionsFlow(config_entries.OptionsFlow):
-    """Options flow for poll interval, rich sensors, and reset display."""
+    """Options flow for poll interval, rich/used sensors, and reset display."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow with config entry reference."""
@@ -452,6 +456,12 @@ class CodexRatesOptionsFlow(config_entries.OptionsFlow):
                     vol.Required(
                         CONF_RICH_SENSORS,
                         default=entry.options.get(CONF_RICH_SENSORS, DEFAULT_RICH_SENSORS),
+                    ): bool,
+                    vol.Required(
+                        CONF_USED_PERCENT_SENSORS,
+                        default=entry.options.get(
+                            CONF_USED_PERCENT_SENSORS, DEFAULT_USED_PERCENT_SENSORS
+                        ),
                     ): bool,
                     vol.Required(
                         CONF_RESET_DISPLAY,

@@ -111,6 +111,7 @@ Available options:
 |---|---:|---|
 | **Poll interval** | 60 seconds | 30–3600 seconds |
 | **Enable rich sensors** | Off | Adds plan, credits balance, last-refresh, and request-count diagnostic sensors when data exists |
+| **Enable used-% sensors** | Off | Adds optional used-percentage entities; remaining % stays primary |
 | **Reset sensor display** | Countdown | `countdown` shows values such as `2d 04h`; `absolute` shows a local `YYYY-MM-DD HH:MM` value |
 
 Changing the reset display only changes the human-readable sensor state. Reset sensors keep the exact provider timestamp in the `resets_at` attribute.
