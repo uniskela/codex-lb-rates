@@ -39,6 +39,10 @@ AUTH_METHOD_TOKENS = "tokens"
 
 DEFAULT_POLL_INTERVAL = 60
 MIN_POLL_INTERVAL = 30
+# HTTP 429 cooldown when Retry-After is absent or unusable.
+DEFAULT_RATE_LIMIT_COOLDOWN = 60
+# Cap temporary backoff so a pathological Retry-After cannot stall forever.
+MAX_RATE_LIMIT_COOLDOWN = 900
 DEFAULT_RICH_SENSORS = False
 DEFAULT_RESET_DISPLAY = RESET_DISPLAY_COUNTDOWN
 DEFAULT_VERIFY_SSL = True

@@ -98,6 +98,35 @@ async def test_chatgpt_reset_credits_zero_is_preserved(aiohttp_client) -> None:
     assert snapshot.accounts[0].reset_credits == 0
 
 
+@pytest.mark.asyncio
+async def test_chatgpt_raises_rate_limit_with_retry_after(aiohttp_client) -> None:
+    from custom_components.codex_rates.exceptions import CodexRatesRateLimitError
+
+    async def usage(request: web.Request) -> web.Response:
+        return web.json_response(
+            {"error": "rate limited"},
+            status=429,
+            headers={"Retry-After": "45"},
+        )
+
+    app = web.Application()
+    app.router.add_get("/usage", usage)
+    client = await aiohttp_client(app)
+
+    async with aiohttp.ClientSession() as session:
+        provider = ChatGptProvider(
+            session,
+            access_token="tok",
+            account_id="acc-9",
+            usage_url=str(client.make_url("/usage")),
+        )
+        with pytest.raises(CodexRatesRateLimitError) as excinfo:
+            await provider.async_fetch()
+
+    assert excinfo.value.retry_after == 45.0
+    assert "429" in str(excinfo.value)
+
+
 def test_load_auth_json(tmp_path: Path) -> None:
     path = tmp_path / "auth.json"
     path.write_text(

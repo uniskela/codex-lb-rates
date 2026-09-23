@@ -341,3 +341,33 @@ async def test_codex_lb_prefers_account_id_over_generic_id(aiohttp_client) -> No
 
     assert len(snapshot.accounts) == 1
     assert snapshot.accounts[0].account_id == "acc_stable"
+
+
+@pytest.mark.asyncio
+async def test_codex_lb_raises_rate_limit_with_retry_after(aiohttp_client) -> None:
+    from custom_components.codex_rates.exceptions import CodexRatesRateLimitError
+
+    async def accounts(request: web.Request) -> web.Response:
+        return web.json_response(
+            {"error": "too many requests"},
+            status=429,
+            headers={"Retry-After": "120"},
+        )
+
+    async def session_state(request: web.Request) -> web.Response:
+        return web.json_response({"authenticated": True, "password_required": False})
+
+    app = web.Application()
+    app.router.add_get("/api/accounts", accounts)
+    app.router.add_get("/api/dashboard-auth/session", session_state)
+    client = await aiohttp_client(app)
+
+    async with aiohttp.ClientSession() as session:
+        provider = CodexLbProvider(
+            session, base_url=str(client.make_url("/")).rstrip("/")
+        )
+        with pytest.raises(CodexRatesRateLimitError) as excinfo:
+            await provider.async_fetch()
+
+    assert excinfo.value.retry_after == 120.0
+    assert "429" in str(excinfo.value)
