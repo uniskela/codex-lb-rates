@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_POLL_INTERVAL, DOMAIN
+from .const import CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL, DOMAIN, MIN_POLL_INTERVAL
 from .coordinator import CodexRatesCoordinator
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
@@ -47,8 +47,19 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
     Options changes (poll interval / rich sensors / reset display) reload platforms.
     """
     coordinator: CodexRatesCoordinator = hass.data[DOMAIN][entry.entry_id]
-    interval = entry.options.get(CONF_POLL_INTERVAL, 60)
-    coordinator.update_interval = timedelta(seconds=max(30, int(interval)))
+    interval = entry.options.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
+    poll_seconds = max(MIN_POLL_INTERVAL, int(interval))
+    coordinator.poll_interval_seconds = poll_seconds
+
+    now = datetime.now(timezone.utc)
+    cooldown_until = coordinator.rate_limit_cooldown_until
+    if cooldown_until is not None and now < cooldown_until:
+        # Preserve HTTP 429 backoff; do not clobber with the configured poll interval.
+        remaining = max(1, int((cooldown_until - now).total_seconds()))
+        coordinator.update_interval = timedelta(seconds=remaining)
+    else:
+        coordinator.update_interval = timedelta(seconds=poll_seconds)
+
     coordinator.rebuild_provider()
 
     key = f"{entry.entry_id}_{_OPTIONS_SNAPSHOT}"

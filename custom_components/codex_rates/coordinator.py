@@ -185,6 +185,14 @@ class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
             self.update_interval = timedelta(seconds=remaining)
             raise self._rate_limit_update_failed(remaining_seconds=remaining)
 
+        if (
+            self.rate_limit_cooldown_until is not None
+            and now >= self.rate_limit_cooldown_until
+        ):
+            # Cooldown elapsed; drop the stamp before attempting a fresh poll.
+            self.rate_limit_cooldown_until = None
+            self.update_interval = timedelta(seconds=self.poll_interval_seconds)
+
         if self._provider is None:
             self._provider = self._build_provider()
         try:

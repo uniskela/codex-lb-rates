@@ -32,3 +32,22 @@ def test_parse_retry_after_http_date() -> None:
     seconds = parse_retry_after(header)
     assert seconds is not None
     assert 60 <= seconds <= 90
+
+
+def test_coordinator_cooldown_defaults_and_caps() -> None:
+    from types import SimpleNamespace
+
+    from custom_components.codex_rates.const import (
+        CONF_POLL_INTERVAL,
+        DEFAULT_RATE_LIMIT_COOLDOWN,
+        MAX_RATE_LIMIT_COOLDOWN,
+        MIN_POLL_INTERVAL,
+    )
+    from custom_components.codex_rates.coordinator import CodexRatesCoordinator
+
+    entry = SimpleNamespace(options={}, data={CONF_POLL_INTERVAL: 60})
+    coordinator = CodexRatesCoordinator(SimpleNamespace(), entry)
+
+    assert coordinator._cooldown_seconds(None) == DEFAULT_RATE_LIMIT_COOLDOWN
+    assert coordinator._cooldown_seconds(5) == MIN_POLL_INTERVAL
+    assert coordinator._cooldown_seconds(99999) == MAX_RATE_LIMIT_COOLDOWN

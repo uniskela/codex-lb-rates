@@ -139,7 +139,8 @@ What you should see:
    - `last_rate_limit_at`;
    - `last_rate_limit_retry_after` (from the `Retry-After` header when present).
 3. Polling stretches temporarily (using `Retry-After` when valid, otherwise a
-   short default backoff, capped) and skips further upstream calls until the
+   short default backoff). Values are clamped between the minimum poll interval
+   (30 seconds) and a 15-minute cap, then skips further upstream calls until the
    cooldown ends.
 4. After a successful poll, the configured poll interval is restored and
    `rate_limit_active` clears.
