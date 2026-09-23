@@ -73,6 +73,10 @@ def _ensure_homeassistant_stubs() -> None:
     aiohttp_client = _mod("homeassistant.helpers.aiohttp_client")
     aiohttp_client.async_get_clientsession = lambda hass, **kwargs: None
     aiohttp_client.async_create_clientsession = lambda hass, **kwargs: None
+    config_validation = _mod("homeassistant.helpers.config_validation")
+    config_validation.config_entry_only_config_schema = lambda domain: {}
+    config_validation.empty_config_schema = lambda domain: {}
+    helpers.config_validation = config_validation
     selector = _mod("homeassistant.helpers.selector")
 
     class _TextSelectorConfig:

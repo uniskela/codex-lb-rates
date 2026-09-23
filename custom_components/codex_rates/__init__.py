@@ -9,12 +9,16 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
 
 from .const import CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL, DOMAIN, MIN_POLL_INTERVAL
 from .coordinator import CodexRatesCoordinator
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 _OPTIONS_SNAPSHOT = "options_snapshot"
+
+# Config-entry-only integration; async_setup only registers the Lovelace card.
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
