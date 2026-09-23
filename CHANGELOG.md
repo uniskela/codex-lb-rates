@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.4](https://github.com/uniskela/codex-lb-rates/compare/v0.6.3...v0.6.4) (2026-09-23)
+
+
+### Bug Fixes
+
+* publish expanded docs on Latest via 0.6.4 ([256f53e](https://github.com/uniskela/codex-lb-rates/commit/256f53e1e8526211af75c5d472c151208fa84889))
+
 ## [0.6.3](https://github.com/uniskela/codex-lb-rates/compare/v0.6.2...v0.6.3) (2026-09-16)
 
 
