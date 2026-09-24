@@ -19,6 +19,10 @@ def test_card_bundle_exists() -> None:
     text = card.read_text(encoding="utf-8")
     assert "codex-rates-card" in text
     assert "customElements.define" in text
+    assert "getConfigForm" in text
+    assert "computeLabel" in text
+    assert "assertConfig" in text
+    assert "Primary remaining entity" in text
 
 
 def test_card_digest_is_stable_for_same_bytes(tmp_path: Path) -> None:

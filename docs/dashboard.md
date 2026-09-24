@@ -20,6 +20,20 @@ After you install or update the integration and restart Home Assistant, **storag
 
 YAML-mode Lovelace cannot be updated by the integration. Add the same URL under your Lovelace `resources:` list (or rely on the frontend module injection that runs when the integration loads), then reload resources / refresh the browser.
 
+### Visual editor
+
+On a recent Home Assistant frontend (≈2023.5+), the card supports the **Visual editor** tab via `getConfigForm`:
+
+| Field | Config key | Notes |
+|---|---|---|
+| Title | `title` | Optional card heading |
+| Primary remaining entity | `entity` | Hero remaining-% sensor |
+| Primary name override | `name` | Optional label for the primary entity only |
+| Additional remaining entities | `entities` | Multi-select of extra remaining-% sensors (string entity IDs) |
+| Green / yellow thresholds | `green` / `yellow` | Colour bands; defaults `50` / `20` |
+
+If an existing card uses **per-row names** in `entities` (`{ entity, name }`), the visual editor stays disabled so a GUI save cannot strip those overrides — edit that shape in the **Code editor** (YAML) instead. Plain string entity lists and a top-level `name` for the primary entity round-trip through the form.
+
 ```yaml
 type: custom:codex-rates-card
 title: Codex pool
@@ -36,6 +50,7 @@ Behaviour:
 - Extra `entities` rows show additional remaining-% sensors (other pool windows or accounts).
 - Optional `green` / `yellow` thresholds default to `50` / `20` (same “plenty / getting low / little left” bands as the gauge examples below).
 - When the primary entity is a pool sensor, the card surfaces `min` / `max`, `sample_count`, and `weighting_method` when those attributes exist.
+- Object-form rows with a custom `name` remain fully supported in YAML; they are the YAML-only advanced option relative to the visual form.
 
 Hard-refresh the browser (or clear the dashboard cache) after an integration update if an older card bundle is still cached.
 
