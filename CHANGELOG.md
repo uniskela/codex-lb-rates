@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.1](https://github.com/uniskela/codex-lb-rates/compare/v0.8.0...v0.8.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* make Lovelace card visual editor stick after upgrades ([3eac48c](https://github.com/uniskela/codex-lb-rates/commit/3eac48cfeebe70c58acb14fc91b57a9d9910e7e6))
+* make Lovelace card visual editor stick after upgrades ([715ef19](https://github.com/uniskela/codex-lb-rates/commit/715ef19a16bf615947c3e708e0f8df0717d50b83))
+
 ## [0.8.0](https://github.com/uniskela/codex-lb-rates/compare/v0.7.0...v0.8.0) (2026-09-24)
 
 
