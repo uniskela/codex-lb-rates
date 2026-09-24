@@ -28,12 +28,16 @@ from .const import (
     ATTR_ACCOUNT_COUNT,
     ATTR_ACCOUNT_ID,
     ATTR_ACTIVE_COUNT,
+    ATTR_ADDITIONAL_QUOTAS,
     ATTR_BY_MINUTES,
+    ATTR_CACHED_INPUT_TOKENS,
     ATTR_EMAIL,
     ATTR_MAX,
     ATTR_MIN,
     ATTR_RESET_CREDITS_EXPIRE,
     ATTR_RESETS_AT,
+    ATTR_TOTAL_COST_USD,
+    ATTR_TOTAL_TOKENS,
     ATTR_USED_PERCENT,
     ATTR_WINDOW_MINUTES,
     CONF_MODE,
@@ -83,6 +87,33 @@ def _reset_attrs(when: datetime | None, account: AccountQuota) -> dict[str, Any]
     if when is not None:
         attrs[ATTR_RESETS_AT] = when.isoformat()
         attrs["reset_timezone"] = str(dt_util.as_local(when).tzinfo)
+    return attrs
+
+
+def _status_attrs(account: AccountQuota) -> dict[str, Any]:
+    attrs: dict[str, Any] = {
+        ATTR_ACCOUNT_ID: account.account_id,
+        ATTR_EMAIL: account.email,
+        "raw_status": account.status,
+    }
+    if account.additional_quotas:
+        attrs[ATTR_ADDITIONAL_QUOTAS] = [
+            quota.as_dict() for quota in account.additional_quotas
+        ]
+    return attrs
+
+
+def _request_usage_attrs(account: AccountQuota) -> dict[str, Any]:
+    attrs: dict[str, Any] = {
+        ATTR_ACCOUNT_ID: account.account_id,
+        ATTR_EMAIL: account.email,
+    }
+    if account.total_tokens is not None:
+        attrs[ATTR_TOTAL_TOKENS] = account.total_tokens
+    if account.cached_input_tokens is not None:
+        attrs[ATTR_CACHED_INPUT_TOKENS] = account.cached_input_tokens
+    if account.total_cost_usd is not None:
+        attrs[ATTR_TOTAL_COST_USD] = account.total_cost_usd
     return attrs
 
 
@@ -237,11 +268,7 @@ ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
         device_class=SensorDeviceClass.ENUM,
         options=list(STATUS_ICONS),
         value_fn=lambda a: a.status if a.status in STATUS_ICONS else "unknown",
-        attrs_fn=lambda a: {
-            ATTR_ACCOUNT_ID: a.account_id,
-            ATTR_EMAIL: a.email,
-            "raw_status": a.status,
-        },
+        attrs_fn=_status_attrs,
     ),
     CodexRatesSensorDescription(
         key="remaining_spark_5h",
@@ -330,6 +357,17 @@ ACCOUNT_SENSORS: tuple[CodexRatesSensorDescription, ...] = (
         value_fn=lambda a: a.last_refresh_at,
         rich=True,
     ),
+    CodexRatesSensorDescription(
+        key="request_count",
+        icon="mdi:counter",
+        translation_key="request_count",
+        name="Request count",
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda a: a.request_count,
+        attrs_fn=_request_usage_attrs,
+        rich=True,
+    ),
 )
 
 _POOL_SENSOR_KEYS = frozenset(
@@ -380,6 +418,7 @@ def _account_supports_description(account: AccountQuota, key: str) -> bool:
         "remaining_spark_weekly": account.remaining_spark_weekly,
         "reset_spark_5h": account.reset_spark_5h,
         "reset_spark_weekly": account.reset_spark_weekly,
+        "request_count": account.request_count,
     }
     return key not in fields or fields[key] is not None
 

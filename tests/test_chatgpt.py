@@ -63,6 +63,53 @@ async def test_chatgpt_usage_mapping(aiohttp_client) -> None:
     assert account.reset_credits == 1
     assert account.status == "active"
     assert account.window_minutes_5h == 300
+    assert account.last_refresh_at is None
+    assert account.request_count is None
+
+
+@pytest.mark.asyncio
+async def test_chatgpt_maps_last_refresh_and_request_usage(aiohttp_client) -> None:
+    async def usage(request: web.Request) -> web.Response:
+        return web.json_response(
+            {
+                "plan_type": "plus",
+                "last_refresh_at": "2026-09-16T12:00:00Z",
+                "rate_limit": {
+                    "allowed": True,
+                    "primary_window": {
+                        "used_percent": 10,
+                        "limit_window_seconds": 18000,
+                    },
+                },
+                "requestUsage": {
+                    "requestCount": 3,
+                    "totalTokens": 1200,
+                    "cachedInputTokens": 400,
+                    "totalCostUsd": 0.02,
+                },
+            }
+        )
+
+    app = web.Application()
+    app.router.add_get("/usage", usage)
+    client = await aiohttp_client(app)
+
+    async with aiohttp.ClientSession() as session:
+        provider = ChatGptProvider(
+            session,
+            access_token="tok",
+            account_id="acc-9",
+            usage_url=str(client.make_url("/usage")),
+        )
+        snapshot = await provider.async_validate()
+
+    account = snapshot.accounts[0]
+    assert account.last_refresh_at is not None
+    assert account.last_refresh_at.isoformat() == "2026-09-16T12:00:00+00:00"
+    assert account.request_count == 3
+    assert account.total_tokens == 1200
+    assert account.cached_input_tokens == 400
+    assert account.total_cost_usd == 0.02
 
 
 @pytest.mark.asyncio
