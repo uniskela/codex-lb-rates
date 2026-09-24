@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.7.0](https://github.com/uniskela/codex-lb-rates/compare/v0.6.4...v0.7.0) (2026-09-24)
+
+
+### Features
+
+* add 429 cooldown UX for LB polling ([73adc7d](https://github.com/uniskela/codex-lb-rates/commit/73adc7d05dcb2e2b89abd18f742a8e0c41ce287f))
+* add 429 cooldown UX for LB polling ([62a93fc](https://github.com/uniskela/codex-lb-rates/commit/62a93fc01926e5f47cebe03eb46000e264a99a28)), closes [#2](https://github.com/uniskela/codex-lb-rates/issues/2)
+* add Lovelace card for pool remaining ([6b972b7](https://github.com/uniskela/codex-lb-rates/commit/6b972b76f5918c0837dfe58a7f2e3b07baba58da))
+* add Lovelace card for pool remaining ([13189b4](https://github.com/uniskela/codex-lb-rates/commit/13189b4a9b4467e8cd977263418191c231b9be76)), closes [#2](https://github.com/uniskela/codex-lb-rates/issues/2)
+* add optional used percent sensors ([b0b0ab5](https://github.com/uniskela/codex-lb-rates/commit/b0b0ab5451bb884a68e2aaeadd7bb3a57ab36791))
+* add optional used percent sensors ([1ca33ea](https://github.com/uniskela/codex-lb-rates/commit/1ca33ea1e54205e1f8b9e56dc948c20c70dc271b)), closes [#2](https://github.com/uniskela/codex-lb-rates/issues/2)
+* expose requestUsage and additional quotas ([18f1200](https://github.com/uniskela/codex-lb-rates/commit/18f1200929542ed8caec4ef66b1c07c59e6f8c93))
+* expose requestUsage and additional quotas ([8e278d5](https://github.com/uniskela/codex-lb-rates/commit/8e278d5ceef273670b878ac73f073f14538a11b1)), closes [#2](https://github.com/uniskela/codex-lb-rates/issues/2)
+
+
+### Bug Fixes
+
+* derive used % from remaining when missing ([ccd3e6b](https://github.com/uniskela/codex-lb-rates/commit/ccd3e6bafc085be4b690b9c2bbdda6734993e985))
+* prefer canonical spark quota and keep reset-only windows ([63e4397](https://github.com/uniskela/codex-lb-rates/commit/63e43977d725f70603b41437ca604668fedfccca))
+* preserve 429 cooldown across entry updates ([795bcaf](https://github.com/uniskela/codex-lb-rates/commit/795bcafc7443f922b023441e6b4af814ae4848fe))
+* repair Lovelace resource types during registration ([8848d2f](https://github.com/uniskela/codex-lb-rates/commit/8848d2fdb07c10ef6ba3fc63c975bb623a76f458))
+* retain polling cooldown across coordinator reloads ([269c499](https://github.com/uniskela/codex-lb-rates/commit/269c4992f594e38f56e1b0d6d6906d1b1a1d6bff))
+* satisfy hassfest for Lovelace card setup ([e57ad3a](https://github.com/uniskela/codex-lb-rates/commit/e57ad3a4a65620516840cea30510e3bfa88ac64c))
+
 ## [0.6.4](https://github.com/uniskela/codex-lb-rates/compare/v0.6.3...v0.6.4) (2026-09-23)
 
 
