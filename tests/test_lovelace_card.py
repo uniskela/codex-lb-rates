@@ -19,6 +19,55 @@ def test_card_bundle_exists() -> None:
     text = card.read_text(encoding="utf-8")
     assert "codex-rates-card" in text
     assert "customElements.define" in text
+    assert "getConfigForm" in text
+    assert "computeLabel" in text
+    assert "assertConfig" in text
+    assert "Primary remaining entity" in text
+    # Visual form expects string[] for entities; any object row must disable GUI.
+    assert 'typeof item !== "string"' in text
+    assert "Object-form entities" in text
+
+
+def test_assert_config_rejects_object_entities(tmp_path: Path) -> None:
+    """assertConfig must throw for non-string entities items (visual-editor guard)."""
+    import json
+    import shutil
+    import subprocess
+
+    if shutil.which("node") is None:
+        pytest.skip("node not available")
+
+    card = Path(lovelace_mod.__file__).parent / "www" / lovelace_mod.CARD_FILENAME
+    script = tmp_path / "check_assert.js"
+    script.write_text(
+        f"""
+const fs = require("fs");
+const text = fs.readFileSync({json.dumps(str(card))}, "utf8");
+const m = text.match(/assertConfig:\\s*\\(config\\)\\s*=>\\s*\\{{([\\s\\S]*?)\\n\\s*\\}},/);
+if (!m) {{ console.error("assertConfig not found"); process.exit(2); }}
+const fn = new Function("config", m[1]);
+function expectThrow(cfg) {{
+  try {{ fn(cfg); console.error("expected throw", JSON.stringify(cfg)); process.exit(3); }}
+  catch (e) {{ /* ok */ }}
+}}
+fn({{ entities: ["sensor.a", "sensor.b"] }});
+fn({{ entities: [] }});
+fn({{}});
+expectThrow({{ entities: [{{ entity: "sensor.a", name: "A" }}] }});
+expectThrow({{ entities: [{{ entity: "sensor.a" }}] }});
+expectThrow({{ entities: [null] }});
+console.log("ok");
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        ["node", str(script)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "ok" in result.stdout
 
 
 def test_card_digest_is_stable_for_same_bytes(tmp_path: Path) -> None:

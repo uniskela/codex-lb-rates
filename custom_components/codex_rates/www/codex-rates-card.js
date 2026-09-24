@@ -14,7 +14,7 @@
  */
 (() => {
   const CARD_TYPE = "codex-rates-card";
-  const CARD_VERSION = "1.0.0";
+  const CARD_VERSION = "1.1.0";
 
   /** @param {number} value */
   function clampPercent(value) {
@@ -96,6 +96,96 @@
         title: "Codex remaining",
         entity: "sensor.codex_lb_pool_all_accounts_5h_remaining",
         entities: ["sensor.codex_lb_pool_all_accounts_weekly_remaining"],
+      };
+    }
+
+    /**
+     * Built-in ha-form visual editor (HA ≈2023.5+).
+     * Object-form `entities` rows ({ entity, name? }) stay YAML-only —
+     * assertConfig disables the visual tab whenever `entities` is not a
+     * plain string list so a GUI save cannot rewrite/strip that shape.
+     */
+    static getConfigForm() {
+      return {
+        schema: [
+          { name: "title", selector: { text: {} } },
+          {
+            name: "entity",
+            selector: {
+              entity: {
+                domain: "sensor",
+              },
+            },
+          },
+          { name: "name", selector: { text: {} } },
+          {
+            name: "entities",
+            selector: {
+              entity: {
+                multiple: true,
+                domain: "sensor",
+              },
+            },
+          },
+          {
+            type: "grid",
+            name: "",
+            flatten: true,
+            schema: [
+              {
+                name: "green",
+                selector: { number: { min: 0, max: 100, mode: "box" } },
+              },
+              {
+                name: "yellow",
+                selector: { number: { min: 0, max: 100, mode: "box" } },
+              },
+            ],
+          },
+        ],
+        computeLabel: (schema) => {
+          switch (schema.name) {
+            case "title":
+              return "Title";
+            case "entity":
+              return "Primary remaining entity";
+            case "name":
+              return "Primary name override";
+            case "entities":
+              return "Additional remaining entities";
+            case "green":
+              return "Green threshold (%)";
+            case "yellow":
+              return "Yellow threshold (%)";
+            default:
+              return undefined;
+          }
+        },
+        computeHelper: (schema) => {
+          switch (schema.name) {
+            case "entity":
+              return "Large remaining-% value and progress bar. At least one of primary or additional entities is required.";
+            case "name":
+              return "Optional label for the primary entity only.";
+            case "entities":
+              return "Extra rows under the primary (entity IDs only). Object-form rows with optional names still need YAML.";
+            case "green":
+            case "yellow":
+              return "Colour bands: ≥ green = plenty; ≥ yellow = getting low; else little left. Defaults 50 / 20.";
+            default:
+              return undefined;
+          }
+        },
+        assertConfig: (config) => {
+          const list = Array.isArray(config?.entities) ? config.entities : [];
+          for (const item of list) {
+            if (typeof item !== "string") {
+              throw new Error(
+                "Object-form entities (including per-row names) are only editable in YAML; use the code editor."
+              );
+            }
+          }
+        },
       };
     }
 
