@@ -11,7 +11,12 @@ import aiohttp
 import pyotp
 
 from ..const import LB_LOGIN_GUEST, LB_SESSION_COOKIES
-from ..exceptions import CodexRatesApiError, CodexRatesAuthError
+from ..exceptions import (
+    CodexRatesApiError,
+    CodexRatesAuthError,
+    CodexRatesRateLimitError,
+    parse_retry_after,
+)
 from ..models import (
     AccountQuota,
     ProviderSnapshot,
@@ -75,6 +80,11 @@ class CodexLbProvider:
         ) as resp:
             if resp.status in (401, 403):
                 raise CodexRatesAuthError("Codex-LB authentication required")
+            if resp.status == 429:
+                raise CodexRatesRateLimitError(
+                    "Codex-LB rate limited (HTTP 429)",
+                    retry_after=parse_retry_after(resp.headers.get("Retry-After")),
+                )
             data = await _safe_json(resp)
             if resp.status >= 400:
                 raise CodexRatesApiError(f"Codex-LB accounts failed ({resp.status})")

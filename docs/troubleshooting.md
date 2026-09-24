@@ -123,6 +123,38 @@ The configured poll interval defaults to 60 seconds and cannot be set below 30 s
 
 A failed poll should not be treated as a successful fresh snapshot.
 
+## Provider HTTP 429 / rate-limit cooldown
+
+When Codex-LB (or the ChatGPT usage endpoint) responds with **HTTP 429**, the
+integration treats that as a temporary **poll backoff**, not as account status
+`rate_limited`.
+
+What you should see:
+
+1. Entities report an update failure whose reason mentions **HTTP rate limited
+   (429)** and a **cooldown until** timestamp.
+2. Download diagnostics and check the `coordinator` block for:
+   - `rate_limit_active`;
+   - `rate_limit_cooldown_until`;
+   - `last_rate_limit_at`;
+   - `last_rate_limit_retry_after` (from the `Retry-After` header when present).
+3. Polling stretches temporarily (using `Retry-After` when valid, otherwise a
+   short default backoff). Values are clamped between the minimum poll interval
+   (30 seconds) and a 15-minute cap, then skips further upstream calls until the
+   cooldown ends.
+4. After a successful poll, the configured poll interval is restored and
+   `rate_limit_active` clears.
+
+Do **not** confuse this with an account's `status` / status sensor value of
+`rate_limited`. That value comes from the quota payload (temporary usage
+throttle on the account) and is unrelated to this HTTP 429 cooldown UX.
+
+If 429s persist:
+
+- increase the configured poll interval;
+- reduce other clients hammering the same Codex-LB dashboard API;
+- confirm Codex-LB itself is healthy and not overloaded.
+
 ## Reset time looks wrong
 
 Check:
@@ -175,6 +207,9 @@ Diagnostics include useful support data such as:
 - provider mode/options;
 - last successful poll time;
 - configured poll interval;
+- HTTP 429 cooldown fields (`rate_limit_active`, `rate_limit_cooldown_until`,
+  `last_rate_limit_at`, `last_rate_limit_retry_after`) when a poll backoff is
+  active or was recently applied;
 - quota values;
 - provider-reported window durations;
 - exact reset timestamps and calculated time remaining;

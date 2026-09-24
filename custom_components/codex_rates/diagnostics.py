@@ -104,6 +104,19 @@ async def async_get_config_entry_diagnostics(
             "last_update_success": coordinator.last_update_success,
             "poll_interval_seconds": coordinator.poll_interval_seconds,
             "last_successful_poll_at": _isoformat(coordinator.last_successful_poll_at),
+            "rate_limit_active": bool(
+                getattr(coordinator, "rate_limit_cooldown_until", None) is not None
+                and coordinator.rate_limit_cooldown_until > now
+            ),
+            "rate_limit_cooldown_until": _isoformat(
+                getattr(coordinator, "rate_limit_cooldown_until", None)
+            ),
+            "last_rate_limit_at": _isoformat(
+                getattr(coordinator, "last_rate_limit_at", None)
+            ),
+            "last_rate_limit_retry_after": getattr(
+                coordinator, "last_rate_limit_retry_after", None
+            ),
         },
         "accounts": accounts,
         "pool": None

@@ -10,7 +10,12 @@ from typing import Any, Callable, Awaitable
 import aiohttp
 
 from ..const import CHATGPT_USAGE_URL
-from ..exceptions import CodexRatesApiError, CodexRatesAuthError
+from ..exceptions import (
+    CodexRatesApiError,
+    CodexRatesAuthError,
+    CodexRatesRateLimitError,
+    parse_retry_after,
+)
 from ..models import AccountQuota, ProviderSnapshot, parse_iso_datetime, remaining_from_used
 from ..oauth import (
     OAuthTokens,
@@ -132,6 +137,11 @@ class ChatGptProvider:
             data = await _safe_json(resp)
             if resp.status in (401, 403):
                 raise CodexRatesAuthError("ChatGPT usage authentication failed")
+            if resp.status == 429:
+                raise CodexRatesRateLimitError(
+                    "ChatGPT usage rate limited (HTTP 429)",
+                    retry_after=parse_retry_after(resp.headers.get("Retry-After")),
+                )
             if resp.status >= 400:
                 raise CodexRatesApiError(f"ChatGPT usage failed ({resp.status})")
         return self._map_usage(data)
