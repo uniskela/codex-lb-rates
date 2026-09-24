@@ -20,12 +20,17 @@ def test_card_bundle_exists() -> None:
     assert "codex-rates-card" in text
     assert "customElements.define" in text
     assert "getConfigForm" in text
+    assert "getConfigElement" in text
+    assert "codex-rates-card-editor" in text
     assert "computeLabel" in text
     assert "assertConfig" in text
     assert "Primary remaining entity" in text
     # Visual form expects string[] for entities; any object row must disable GUI.
     assert 'typeof item !== "string"' in text
     assert "Object-form entities" in text
+    # Upgrade-safe: re-bind editor hooks even when define() is a no-op.
+    assert "LiveCard.getConfigForm" in text
+    assert "LiveCard.getConfigElement" in text
 
 
 def test_assert_config_rejects_object_entities(tmp_path: Path) -> None:
@@ -43,8 +48,8 @@ def test_assert_config_rejects_object_entities(tmp_path: Path) -> None:
         f"""
 const fs = require("fs");
 const text = fs.readFileSync({json.dumps(str(card))}, "utf8");
-const m = text.match(/assertConfig:\\s*\\(config\\)\\s*=>\\s*\\{{([\\s\\S]*?)\\n\\s*\\}},/);
-if (!m) {{ console.error("assertConfig not found"); process.exit(2); }}
+const m = text.match(/function assertConfig\\(config\\) \\{{([\\s\\S]*?)\\n  \\}}/);
+if (!m) {{ console.error("assertConfig function not found"); process.exit(2); }}
 const fn = new Function("config", m[1]);
 function expectThrow(cfg) {{
   try {{ fn(cfg); console.error("expected throw", JSON.stringify(cfg)); process.exit(3); }}

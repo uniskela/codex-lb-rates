@@ -14,7 +14,9 @@
  */
 (() => {
   const CARD_TYPE = "codex-rates-card";
-  const CARD_VERSION = "1.1.0";
+  const EDITOR_TYPE = "codex-rates-card-editor";
+  // Bump when editor/card surface changes so console + digest cache-bust clearly.
+  const CARD_VERSION = "1.1.1";
 
   /** @param {number} value */
   function clampPercent(value) {
@@ -80,6 +82,173 @@
     return Number.isInteger(num) ? String(num) : num.toFixed(1);
   }
 
+  /**
+   * Object-form `entities` rows stay YAML-only — the multi entity selector
+   * expects string[]. Throwing disables the visual editor for that config.
+   * @param {Record<string, unknown> | null | undefined} config
+   */
+  function assertConfig(config) {
+    const list = Array.isArray(config?.entities) ? config.entities : [];
+    for (const item of list) {
+      if (typeof item !== "string") {
+        throw new Error(
+          "Object-form entities (including per-row names) are only editable in YAML; use the code editor."
+        );
+      }
+    }
+  }
+
+  /** @param {{ name?: string }} schema */
+  function computeLabel(schema) {
+    switch (schema.name) {
+      case "title":
+        return "Title";
+      case "entity":
+        return "Primary remaining entity";
+      case "name":
+        return "Primary name override";
+      case "entities":
+        return "Additional remaining entities";
+      case "green":
+        return "Green threshold (%)";
+      case "yellow":
+        return "Yellow threshold (%)";
+      default:
+        return undefined;
+    }
+  }
+
+  /** @param {{ name?: string }} schema */
+  function computeHelper(schema) {
+    switch (schema.name) {
+      case "entity":
+        return "Large remaining-% value and progress bar. At least one of primary or additional entities is required.";
+      case "name":
+        return "Optional label for the primary entity only.";
+      case "entities":
+        return "Extra rows under the primary (entity IDs only). Object-form rows with optional names still need YAML.";
+      case "green":
+      case "yellow":
+        return "Colour bands: ≥ green = plenty; ≥ yellow = getting low; else little left. Defaults 50 / 20.";
+      default:
+        return undefined;
+    }
+  }
+
+  const CONFIG_FORM_SCHEMA = [
+    { name: "title", selector: { text: {} } },
+    {
+      name: "entity",
+      selector: {
+        entity: {
+          domain: "sensor",
+        },
+      },
+    },
+    { name: "name", selector: { text: {} } },
+    {
+      name: "entities",
+      selector: {
+        entity: {
+          multiple: true,
+          domain: "sensor",
+        },
+      },
+    },
+    {
+      type: "grid",
+      name: "",
+      flatten: true,
+      schema: [
+        {
+          name: "green",
+          selector: { number: { min: 0, max: 100, mode: "box" } },
+        },
+        {
+          name: "yellow",
+          selector: { number: { min: 0, max: 100, mode: "box" } },
+        },
+      ],
+    },
+  ];
+
+  function getConfigForm() {
+    return {
+      schema: CONFIG_FORM_SCHEMA,
+      computeLabel,
+      computeHelper,
+      assertConfig,
+    };
+  }
+
+  /**
+   * Compact visual editor — HA prefers getConfigElement over getConfigForm.
+   * Uses frontend ha-form (always present in the card editor dialog).
+   */
+  class CodexRatesCardEditor extends HTMLElement {
+    constructor() {
+      super();
+      /** @type {Record<string, unknown>} */
+      this._config = {};
+      /** @type {any} */
+      this._hass = undefined;
+      /** @type {any} */
+      this._form = undefined;
+    }
+
+    /** @param {Record<string, unknown>} config */
+    setConfig(config) {
+      assertConfig(config);
+      this._config = { ...config };
+      this._ensureForm();
+      if (this._form) {
+        this._form.data = this._config;
+      }
+    }
+
+    /** @param {any} hass */
+    set hass(hass) {
+      this._hass = hass;
+      if (this._form) {
+        this._form.hass = hass;
+      }
+    }
+
+    connectedCallback() {
+      this._ensureForm();
+    }
+
+    _ensureForm() {
+      if (this._form || !this.isConnected) return;
+      const form = document.createElement("ha-form");
+      form.schema = CONFIG_FORM_SCHEMA;
+      form.computeLabel = computeLabel;
+      form.computeHelper = computeHelper;
+      form.data = this._config;
+      if (this._hass) {
+        form.hass = this._hass;
+      }
+      form.addEventListener("value-changed", (ev) => {
+        ev.stopPropagation();
+        const value = ev.detail?.value || {};
+        const config = { ...this._config, ...value };
+        if (this._config.type) {
+          config.type = this._config.type;
+        }
+        this._config = config;
+        this.dispatchEvent(
+          new CustomEvent("config-changed", {
+            detail: { config },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      });
+      this._form = form;
+      this.appendChild(form);
+    }
+  }
+
   class CodexRatesCard extends HTMLElement {
     constructor() {
       super();
@@ -99,94 +268,14 @@
       };
     }
 
-    /**
-     * Built-in ha-form visual editor (HA ≈2023.5+).
-     * Object-form `entities` rows ({ entity, name? }) stay YAML-only —
-     * assertConfig disables the visual tab whenever `entities` is not a
-     * plain string list so a GUI save cannot rewrite/strip that shape.
-     */
+    /** Built-in ha-form schema (HA ≈2023.5+ fallback if getConfigElement is ignored). */
     static getConfigForm() {
-      return {
-        schema: [
-          { name: "title", selector: { text: {} } },
-          {
-            name: "entity",
-            selector: {
-              entity: {
-                domain: "sensor",
-              },
-            },
-          },
-          { name: "name", selector: { text: {} } },
-          {
-            name: "entities",
-            selector: {
-              entity: {
-                multiple: true,
-                domain: "sensor",
-              },
-            },
-          },
-          {
-            type: "grid",
-            name: "",
-            flatten: true,
-            schema: [
-              {
-                name: "green",
-                selector: { number: { min: 0, max: 100, mode: "box" } },
-              },
-              {
-                name: "yellow",
-                selector: { number: { min: 0, max: 100, mode: "box" } },
-              },
-            ],
-          },
-        ],
-        computeLabel: (schema) => {
-          switch (schema.name) {
-            case "title":
-              return "Title";
-            case "entity":
-              return "Primary remaining entity";
-            case "name":
-              return "Primary name override";
-            case "entities":
-              return "Additional remaining entities";
-            case "green":
-              return "Green threshold (%)";
-            case "yellow":
-              return "Yellow threshold (%)";
-            default:
-              return undefined;
-          }
-        },
-        computeHelper: (schema) => {
-          switch (schema.name) {
-            case "entity":
-              return "Large remaining-% value and progress bar. At least one of primary or additional entities is required.";
-            case "name":
-              return "Optional label for the primary entity only.";
-            case "entities":
-              return "Extra rows under the primary (entity IDs only). Object-form rows with optional names still need YAML.";
-            case "green":
-            case "yellow":
-              return "Colour bands: ≥ green = plenty; ≥ yellow = getting low; else little left. Defaults 50 / 20.";
-            default:
-              return undefined;
-          }
-        },
-        assertConfig: (config) => {
-          const list = Array.isArray(config?.entities) ? config.entities : [];
-          for (const item of list) {
-            if (typeof item !== "string") {
-              throw new Error(
-                "Object-form entities (including per-row names) are only editable in YAML; use the code editor."
-              );
-            }
-          }
-        },
-      };
+      return getConfigForm();
+    }
+
+    /** Preferred Lovelace visual editor hook. */
+    static getConfigElement() {
+      return document.createElement(EDITOR_TYPE);
     }
 
     /** @param {Record<string, unknown>} config */
@@ -421,8 +510,23 @@
     }
   }
 
+  if (!customElements.get(EDITOR_TYPE)) {
+    customElements.define(EDITOR_TYPE, CodexRatesCardEditor);
+  }
+
   if (!customElements.get(CARD_TYPE)) {
     customElements.define(CARD_TYPE, CodexRatesCard);
+  }
+
+  // Always re-attach editor hooks on the *live* custom element class.
+  // After upgrades, an older bundle may already have registered the tag;
+  // customElements.define is then a no-op and HA would keep seeing a class
+  // without getConfigForm/getConfigElement ("Visual editor not supported").
+  const LiveCard = customElements.get(CARD_TYPE);
+  if (LiveCard) {
+    LiveCard.getConfigForm = getConfigForm;
+    LiveCard.getConfigElement = () => document.createElement(EDITOR_TYPE);
+    LiveCard.getStubConfig = CodexRatesCard.getStubConfig;
   }
 
   window.customCards = window.customCards || [];
