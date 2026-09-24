@@ -23,6 +23,9 @@ def test_card_bundle_exists() -> None:
     assert "computeLabel" in text
     assert "assertConfig" in text
     assert "Primary remaining entity" in text
+    # Visual form expects string[] for entities; any object row must disable GUI.
+    assert "typeof item !== \"string\"" in text
+    assert "Object-form entities" in text
 
 
 def test_card_digest_is_stable_for_same_bytes(tmp_path: Path) -> None:

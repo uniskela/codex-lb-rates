@@ -32,7 +32,22 @@ On a recent Home Assistant frontend (≈2023.5+), the card supports the **Visual
 | Additional remaining entities | `entities` | Multi-select of extra remaining-% sensors (string entity IDs) |
 | Green / yellow thresholds | `green` / `yellow` | Colour bands; defaults `50` / `20` |
 
-If an existing card uses **per-row names** in `entities` (`{ entity, name }`), the visual editor stays disabled so a GUI save cannot strip those overrides — edit that shape in the **Code editor** (YAML) instead. Plain string entity lists and a top-level `name` for the primary entity round-trip through the form.
+Form-safe example (string entity IDs only — round-trips through the visual editor):
+
+```yaml
+type: custom:codex-rates-card
+title: Codex pool
+entity: sensor.codex_lb_pool_all_accounts_5h_remaining
+name: Pool primary
+entities:
+  - sensor.codex_lb_pool_all_accounts_weekly_remaining
+green: 50
+yellow: 20
+```
+
+### YAML-only advanced
+
+Object-form `entities` rows (`{ entity, name? }`, with or without a custom `name`) remain fully supported at runtime. When any `entities` item is an object, the visual editor stays disabled so a GUI save cannot rewrite that list — edit those cards in the **Code editor** (YAML) instead.
 
 ```yaml
 type: custom:codex-rates-card
@@ -50,7 +65,7 @@ Behaviour:
 - Extra `entities` rows show additional remaining-% sensors (other pool windows or accounts).
 - Optional `green` / `yellow` thresholds default to `50` / `20` (same “plenty / getting low / little left” bands as the gauge examples below).
 - When the primary entity is a pool sensor, the card surfaces `min` / `max`, `sample_count`, and `weighting_method` when those attributes exist.
-- Object-form rows with a custom `name` remain fully supported in YAML; they are the YAML-only advanced option relative to the visual form.
+- Top-level `name` (primary only) is available in both the visual form and YAML; per-row names under `entities` are YAML-only.
 
 Hard-refresh the browser (or clear the dashboard cache) after an integration update if an older card bundle is still cached.
 

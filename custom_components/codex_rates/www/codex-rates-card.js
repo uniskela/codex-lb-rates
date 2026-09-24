@@ -101,9 +101,9 @@
 
     /**
      * Built-in ha-form visual editor (HA ≈2023.5+).
-     * Per-row `entities[].name` object form stays YAML-only — assertConfig
-     * disables the visual tab when those overrides are present so saving
-     * the form cannot strip them.
+     * Object-form `entities` rows ({ entity, name? }) stay YAML-only —
+     * assertConfig disables the visual tab whenever `entities` is not a
+     * plain string list so a GUI save cannot rewrite/strip that shape.
      */
     static getConfigForm() {
       return {
@@ -168,7 +168,7 @@
             case "name":
               return "Optional label for the primary entity only.";
             case "entities":
-              return "Extra rows under the primary. Per-row custom names still need YAML ({ entity, name }).";
+              return "Extra rows under the primary (entity IDs only). Object-form rows with optional names still need YAML.";
             case "green":
             case "yellow":
               return "Colour bands: ≥ green = plenty; ≥ yellow = getting low; else little left. Defaults 50 / 20.";
@@ -179,9 +179,9 @@
         assertConfig: (config) => {
           const list = Array.isArray(config?.entities) ? config.entities : [];
           for (const item of list) {
-            if (item && typeof item === "object" && item.name) {
+            if (typeof item !== "string") {
               throw new Error(
-                "Per-row entity names are only editable in YAML; remove name overrides or use the code editor."
+                "Object-form entities (including per-row names) are only editable in YAML; use the code editor."
               );
             }
           }
