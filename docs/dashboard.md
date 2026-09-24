@@ -22,7 +22,7 @@ YAML-mode Lovelace cannot be updated by the integration. Add the same URL under 
 
 ### Visual editor
 
-On a recent Home Assistant frontend (≈2023.5+), the card supports the **Visual editor** tab via `getConfigForm`:
+On a recent Home Assistant frontend (≈2023.5+), the card supports the **Visual editor** via `getConfigElement` (preferred) and `getConfigForm` (built-in `ha-form` fallback):
 
 | Field | Config key | Notes |
 |---|---|---|
@@ -68,6 +68,13 @@ Behaviour:
 - Top-level `name` (primary only) is available in both the visual form and YAML; per-row names under `entities` are YAML-only.
 
 Hard-refresh the browser (or clear the dashboard cache) after an integration update if an older card bundle is still cached.
+
+If the editor still says **Visual editor not supported** after updating to a release that includes it:
+
+1. Confirm the integration is on **0.8.0+** (or a build that includes the visual editor).
+2. Restart Home Assistant, then hard-refresh the dashboard (Ctrl/Cmd+Shift+R).
+3. Open the browser console — you should see `Codex-LB Rates card v1.1.1` (or newer).
+4. Under **Settings → Dashboards → Resources**, confirm the module URL is `/codex_rates/codex-rates-card.js?v=…` (a changing `?v=` digest). If you added the resource manually without `?v=`, append a new query (for example `?v=2`) once so the browser drops the stale module.
 
 ## Simple account card
 
