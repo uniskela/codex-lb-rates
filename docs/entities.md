@@ -23,6 +23,9 @@ These sensors are created when the relevant provider data exists.
 | Primary remaining | Yes | Yes | Remaining % |
 | Secondary remaining | Yes | Yes | Remaining % |
 | Monthly remaining | When reported | No | Remaining % |
+| Primary used | Optional | Optional | Used % (off by default) |
+| Secondary used | Optional | Optional | Used % (off by default) |
+| Monthly used | Optional when reported | No | Used % (off by default) |
 | Primary reset | When reported | When reported | Countdown or local date/time |
 | Secondary reset | When reported | When reported | Countdown or local date/time |
 | Monthly reset | When reported | No | Countdown or local date/time |
@@ -30,6 +33,7 @@ These sensors are created when the relevant provider data exists.
 | Reset credits | When reported | When reported | Available reset-credit count |
 | Spark primary remaining/reset | When reported | No | Remaining % / reset |
 | Spark secondary remaining/reset | When reported | No | Remaining % / reset |
+| Spark primary/secondary used | Optional when reported | No | Used % (off by default) |
 
 The internal keys still use names such as `remaining_5h` and `remaining_weekly` for compatibility, but the **display name can be corrected from the provider-reported window duration**.
 
@@ -59,6 +63,22 @@ Account remaining sensors can include:
 | `quota_model` | Present on Spark sensors; currently `gpt-5.3-codex-spark` |
 
 A provider can report a remaining value without every optional attribute.
+
+## Optional used-% sensors
+
+Used-% sensors are **off by default**. Enable them under the integration's **Configure** options (`used_percent_sensors`).
+
+When enabled, the integration adds used-percentage entities for the same quota windows that already have remaining-% sensors (account devices, and Codex-LB pool aggregates when those windows have samples). Remaining % stays the primary dashboard and automation target; the quota warning blueprint is unchanged.
+
+Account used sensors can include:
+
+| Attribute | Meaning |
+|---|---|
+| `account_id` | Provider account identifier |
+| `email` | Account email when available |
+| `remaining_percent` | Remaining percentage for the same window when available |
+| `window_minutes` | Duration reported for that quota window |
+| `quota_model` | Present on Spark sensors; currently `gpt-5.3-codex-spark` |
 
 ## Reset sensors
 
@@ -130,6 +150,8 @@ It contains aggregate remaining-percentage sensors for every quota window with a
 - monthly;
 - Spark primary;
 - Spark secondary.
+
+When used-% sensors are enabled, matching aggregate **used** sensors are created for those same windows (derived from the remaining pool aggregates).
 
 ### How pool remaining is calculated
 

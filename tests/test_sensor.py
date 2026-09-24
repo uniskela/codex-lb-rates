@@ -217,6 +217,8 @@ def test_chatgpt_excludes_monthly_includes_reset_credits() -> None:
     assert "remaining_5h" in keys
     assert "plan_type" not in keys  # rich
     assert "request_count" not in keys  # rich
+    assert "used_5h" not in keys  # used-% option off
+    assert "used_weekly" not in keys
 
 
 def test_rich_sensors_include_request_count() -> None:
@@ -274,6 +276,169 @@ def test_status_exposes_additional_quotas_and_request_usage_attrs() -> None:
     assert request_attrs["total_cost_usd"] == 0.05
 
 
+def test_used_percent_sensors_option_gates_account_and_pool_keys() -> None:
+    from custom_components.codex_rates.const import CONF_USED_PERCENT_SENSORS
+    from custom_components.codex_rates.models import compute_pool_aggregate
+    from custom_components.codex_rates.sensor import CodexAccountSensor, CodexPoolSensor
+
+    off_keys = {
+        d.key
+        for d in ACCOUNT_SENSORS
+        if _include_description(
+            d, rich=False, used_percent_sensors=False, is_codex_lb=True, has_monthly=True
+        )
+    }
+    on_keys = {
+        d.key
+        for d in ACCOUNT_SENSORS
+        if _include_description(
+            d, rich=False, used_percent_sensors=True, is_codex_lb=True, has_monthly=True
+        )
+    }
+    assert "used_5h" not in off_keys
+    assert "used_monthly" not in off_keys
+    assert "used_spark_5h" not in off_keys
+    assert {"used_5h", "used_weekly", "used_monthly", "used_spark_5h", "used_spark_weekly"} <= on_keys
+    assert "remaining_5h" in on_keys  # remaining stays available
+
+    chatgpt_on = {
+        d.key
+        for d in ACCOUNT_SENSORS
+        if _include_description(
+            d,
+            rich=False,
+            used_percent_sensors=True,
+            is_codex_lb=False,
+            has_monthly=False,
+        )
+    }
+    assert "used_5h" in chatgpt_on
+    assert "used_weekly" in chatgpt_on
+    assert "used_monthly" not in chatgpt_on
+    assert "used_spark_5h" not in chatgpt_on
+
+    account = AccountQuota(
+        account_id="a",
+        remaining_5h=25,
+        used_5h=75,
+        window_minutes_5h=300,
+        remaining_weekly=40,
+        used_weekly=60,
+    )
+    entry_off = SimpleNamespace(
+        entry_id="entry",
+        data={CONF_MODE: MODE_CODEX_LB},
+        options={},
+    )
+    entry_on = SimpleNamespace(
+        entry_id="entry",
+        data={CONF_MODE: MODE_CODEX_LB},
+        options={CONF_USED_PERCENT_SENSORS: True},
+    )
+    snapshot = ProviderSnapshot(
+        accounts=[account], pool=compute_pool_aggregate([account])
+    )
+    assert "used_5h" not in allowed_sensor_keys(entry_off, snapshot)  # type: ignore[arg-type]
+    assert "used_5h" in allowed_sensor_keys(entry_on, snapshot)  # type: ignore[arg-type]
+    assert "remaining_5h" in allowed_sensor_keys(entry_on, snapshot)  # type: ignore[arg-type]
+
+    from custom_components.codex_rates import sensor as sensor_mod
+
+    off_entities = {
+        e.unique_id
+        for e in sensor_mod._snapshot_sensors(
+            SimpleNamespace(data=snapshot), entry_off, snapshot
+        )
+    }
+    on_entities = {
+        e.unique_id
+        for e in sensor_mod._snapshot_sensors(
+            SimpleNamespace(data=snapshot), entry_on, snapshot
+        )
+    }
+    assert "entry_a_used_5h" not in off_entities
+    assert "entry_pool_used_5h" not in off_entities
+    assert "entry_a_remaining_5h" in off_entities
+    assert "entry_a_used_5h" in on_entities
+    assert "entry_pool_used_5h" in on_entities
+    assert "entry_a_remaining_5h" in on_entities
+
+    description = next(d for d in ACCOUNT_SENSORS if d.key == "used_5h")
+    coordinator = SimpleNamespace(data=snapshot)
+    sensor = CodexAccountSensor(coordinator, entry_on, "a", description)
+    assert sensor.native_value == 75
+    assert sensor.extra_state_attributes["remaining_percent"] == 25
+    assert sensor.name == "5h used"
+
+    pool = CodexPoolSensor(coordinator, entry_on, "used_5h", "All accounts 5h used")
+    assert pool.native_value == 75
+    assert pool.extra_state_attributes["min"] == 75
+    assert pool.extra_state_attributes["max"] == 75
+    assert pool.name == "All accounts 5h used"
+
+
+def test_used_percent_derives_from_remaining_when_used_missing() -> None:
+    from custom_components.codex_rates import sensor as sensor_mod
+    from custom_components.codex_rates.const import CONF_USED_PERCENT_SENSORS
+    from custom_components.codex_rates.models import compute_pool_aggregate
+    from custom_components.codex_rates.sensor import CodexAccountSensor
+
+    account = AccountQuota(
+        account_id="spark_only",
+        remaining_spark_5h=40,
+        window_minutes_spark_5h=300,
+    )
+    entry = SimpleNamespace(
+        entry_id="entry",
+        data={CONF_MODE: MODE_CODEX_LB},
+        options={CONF_USED_PERCENT_SENSORS: True},
+    )
+    snapshot = ProviderSnapshot(
+        accounts=[account], pool=compute_pool_aggregate([account])
+    )
+    description = next(d for d in ACCOUNT_SENSORS if d.key == "used_spark_5h")
+    sensor = CodexAccountSensor(
+        SimpleNamespace(data=snapshot), entry, "spark_only", description
+    )
+    assert sensor.native_value == 60
+    assert "entry_spark_only_used_spark_5h" in {
+        e.unique_id
+        for e in sensor_mod._snapshot_sensors(
+            SimpleNamespace(data=snapshot), entry, snapshot
+        )
+    }
+
+
+def test_pool_used_inverts_multi_account_min_max() -> None:
+    from custom_components.codex_rates.const import CONF_USED_PERCENT_SENSORS
+    from custom_components.codex_rates.models import compute_pool_aggregate
+    from custom_components.codex_rates.sensor import CodexPoolSensor
+
+    accounts = [
+        AccountQuota(account_id="low", remaining_5h=10, used_5h=90, capacity_5h=1),
+        AccountQuota(account_id="high", remaining_5h=90, used_5h=10, capacity_5h=1),
+    ]
+    snapshot = ProviderSnapshot(
+        accounts=accounts, pool=compute_pool_aggregate(accounts)
+    )
+    entry = SimpleNamespace(
+        entry_id="entry",
+        data={CONF_MODE: MODE_CODEX_LB},
+        options={CONF_USED_PERCENT_SENSORS: True},
+    )
+    pool = CodexPoolSensor(
+        SimpleNamespace(data=snapshot),
+        entry,
+        "used_5h",
+        "All accounts 5h used",
+    )
+    assert pool.native_value == 50
+    attrs = pool.extra_state_attributes
+    assert attrs is not None
+    assert attrs["min"] == 10
+    assert attrs["max"] == 90
+
+
 def test_codex_lb_includes_monthly_when_present() -> None:
     keys = {
         d.key
@@ -327,10 +492,20 @@ def test_account_id_from_unique_id() -> None:
     assert (
         account_id_from_unique_id(entry_id, f"{entry_id}_pool_remaining_5h") == "pool"
     )
+    assert (
+        account_id_from_unique_id(entry_id, f"{entry_id}_acc_abc_used_5h") == "acc_abc"
+    )
+    assert (
+        account_id_from_unique_id(entry_id, f"{entry_id}_pool_used_weekly") == "pool"
+    )
     assert account_id_from_unique_id(entry_id, "other_entry_acc_remaining_5h") is None
     assert (
         sensor_key_from_unique_id(entry_id, f"{entry_id}_acc_abc_remaining_monthly")
         == "remaining_monthly"
+    )
+    assert (
+        sensor_key_from_unique_id(entry_id, f"{entry_id}_acc_abc_used_spark_weekly")
+        == "used_spark_weekly"
     )
 
 

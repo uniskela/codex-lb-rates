@@ -81,9 +81,11 @@
         "data": {
           "poll_interval": "Poll interval (seconds)",
           "rich_sensors": "Enable rich sensors (plan, credits balance, last refresh, request usage)",
+          "used_percent_sensors": "Enable used-% sensors (remaining % stays primary)",
           "reset_display": "Reset sensor display"
         },
         "data_description": {
+          "used_percent_sensors": "Optional used-percentage entities for the same quota windows. Remaining % stays the default dashboard and automation value.",
           "reset_display": "countdown shows Xd XXh remaining; absolute shows a local date/time. resets_at always keeps the exact timestamp."
         }
       }
@@ -99,6 +101,15 @@
       },
       "remaining_monthly": {
         "name": "Monthly remaining"
+      },
+      "used_5h": {
+        "name": "5h used"
+      },
+      "used_weekly": {
+        "name": "Weekly used"
+      },
+      "used_monthly": {
+        "name": "Monthly used"
       },
       "reset_5h": {
         "name": "5h resets"
@@ -126,6 +137,12 @@
       },
       "remaining_spark_weekly": {
         "name": "Spark weekly remaining"
+      },
+      "used_spark_5h": {
+        "name": "Spark 5h used"
+      },
+      "used_spark_weekly": {
+        "name": "Spark weekly used"
       },
       "reset_spark_5h": {
         "name": "Spark 5h resets"
