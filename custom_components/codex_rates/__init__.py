@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from math import ceil
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
 
 from .const import CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL, DOMAIN, MIN_POLL_INTERVAL
 from .coordinator import CodexRatesCoordinator
@@ -15,9 +17,25 @@ from .coordinator import CodexRatesCoordinator
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 _OPTIONS_SNAPSHOT = "options_snapshot"
 
+# Config-entry-only integration; async_setup only registers the Lovelace card.
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
+    """Set up the integration package and register the Lovelace card."""
+    from .lovelace import async_setup_lovelace_card
+
+    await async_setup_lovelace_card(hass)
+    return True
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Codex Rates from a config entry."""
+    # Re-run in case Lovelace was not ready during async_setup.
+    from .lovelace import async_setup_lovelace_card
+
+    await async_setup_lovelace_card(hass)
+
     coordinator = CodexRatesCoordinator(hass, entry)
     try:
         await coordinator.async_config_entry_first_refresh()

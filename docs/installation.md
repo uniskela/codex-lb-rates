@@ -72,6 +72,8 @@ Do not copy it as part of the integration installation unless you want quota not
 
 ## Updating later
 
-HACS updates the Python integration, while the quota-alert blueprint is updated by **re-importing the blueprint** in Home Assistant. These are separate update paths.
+HACS updates the Python integration (including the bundled Lovelace card under `www/`), while the quota-alert blueprint is updated by **re-importing the blueprint** in Home Assistant. These are separate update paths.
+
+After updating the integration, restart Home Assistant. If a dashboard still shows an old custom card bundle, hard-refresh the browser so it picks up the new `/codex_rates/codex-rates-card.js?v=…` resource.
 
 See [Upgrading](upgrading.md) before updating.
