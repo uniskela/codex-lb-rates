@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.0](https://github.com/uniskela/codex-lb-rates/compare/v0.7.0...v0.8.0) (2026-09-24)
+
+
+### Features
+
+* add Lovelace card visual config editor ([39a931e](https://github.com/uniskela/codex-lb-rates/commit/39a931e97bc9f4bb2b726131227a6ac7f2c3353a))
+* add Lovelace card visual config editor ([2dd273b](https://github.com/uniskela/codex-lb-rates/commit/2dd273b3056b00cf02328af4b406ab2cf3de7e7e))
+
+
+### Bug Fixes
+
+* tighten visual editor assertConfig for object entities ([2ce8688](https://github.com/uniskela/codex-lb-rates/commit/2ce8688d4994c617bd087f8200321de2cb3aa889))
+
 ## [0.7.0](https://github.com/uniskela/codex-lb-rates/compare/v0.6.4...v0.7.0) (2026-09-24)
 
 
