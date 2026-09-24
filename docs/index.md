@@ -19,8 +19,8 @@ If you already use the integration, see [upgrading](upgrading.md) before changin
 
 | Mode | Use it when | What you get |
 |---|---|---|
-| **Codex-LB** | You run a Codex-LB server with one or more accounts | Per-account devices, pool-wide remaining sensors, optional monthly and Spark quota windows when Codex-LB reports them |
-| **ChatGPT / Codex CLI** | You want to monitor one ChatGPT account directly | Per-account primary/secondary quota windows, reset times, reset credits, status, and optional diagnostic sensors |
+| **Codex-LB** | You run a Codex-LB server with one or more accounts | Per-account devices, pool-wide remaining sensors, optional monthly and Spark quota windows when Codex-LB reports them, plus optional used-% and rich diagnostics when enabled |
+| **ChatGPT / Codex CLI** | You want to monitor one ChatGPT account directly | Per-account primary/secondary quota windows, reset times, reset credits, status, and optional used-% / rich diagnostic sensors when enabled |
 
 You can add the integration more than once for different ChatGPT accounts. A Codex-LB host is configured once and exposes the accounts reported by that server.
 
@@ -32,7 +32,8 @@ Each account becomes a Home Assistant device. Depending on the provider data, th
 - reset countdowns or local reset date/time values;
 - account status;
 - reset credits;
-- optional plan, credit balance, and last-refresh diagnostics;
+- optional used-% sensors when enabled in Configure (off by default; remaining % stays primary);
+- optional rich diagnostics when enabled — plan, credit balance, last-refresh, and request-count when the provider reports them;
 - Codex-LB-only monthly and GPT-5.3-Codex-Spark quota sensors when those windows are actually reported.
 
 Codex-LB mode also creates a **Codex-LB pool** device with capacity-weighted remaining percentages across reporting accounts.

@@ -58,7 +58,7 @@ Account remaining sensors can include:
 |---|---|
 | `account_id` | Provider account identifier |
 | `email` | Account email when available |
-| `used_percent` | Provider-reported used percentage when available |
+| `used_percent` | Used percentage when available (provider-reported when present; otherwise may be derived from remaining) |
 | `window_minutes` | Duration reported for that quota window |
 | `quota_model` | Present on Spark sensors; currently `gpt-5.3-codex-spark` |
 
@@ -68,7 +68,7 @@ A provider can report a remaining value without every optional attribute.
 
 Used-% sensors are **off by default**. Enable them under the integration's **Configure** options (`used_percent_sensors`).
 
-When enabled, the integration adds used-percentage entities for the same quota windows that already have remaining-% sensors (account devices, and Codex-LB pool aggregates when those windows have samples). Remaining % stays the primary dashboard and automation target; the quota warning blueprint is unchanged.
+When enabled, the integration adds used-percentage entities for the same quota windows that already have remaining-% sensors (account devices, and Codex-LB pool aggregates when those windows have samples). Sensor state prefers a provider-reported used % when present; otherwise it may be derived as `100 − remaining`. Remaining % stays the primary dashboard and automation target; the quota warning blueprint is unchanged.
 
 Account used sensors can include:
 
@@ -116,7 +116,7 @@ The integration normalizes account status into these states:
 
 The original provider value is retained in the `raw_status` attribute.
 
-When Codex-LB reports `additionalQuotas`, the status sensor also includes an `additional_quotas` attribute (always, not only when rich sensors are enabled): a list of structured rows (Spark and any other gated quotas) with keys, labels, routing policy, and primary/secondary window used % / reset / duration.
+When Codex-LB reports `additionalQuotas`, the status sensor also includes an `additional_quotas` attribute (always, not only when rich sensors are enabled): a list of structured rows (Spark and any other gated quotas) with keys, labels, routing policy, and primary/secondary window fields when present — used %, remaining %, reset (`resets_at`), and window duration.
 
 ## Reset credits
 
@@ -133,7 +133,7 @@ When the provider supplies the values, they add:
 - **Plan**;
 - **Credits balance**;
 - **Last refresh**;
-- **Request count** (Codex-LB `requestUsage` totals: state is request count; attributes can include `total_tokens`, `cached_input_tokens`, and `total_cost_usd`).
+- **Request count** (when the provider supplies `requestUsage`: state is request count; attributes can include `total_tokens`, `cached_input_tokens`, and `total_cost_usd`). Codex-LB reports this today; ChatGPT / CLI exposes it if/when the usage payload includes the same totals.
 
 These are diagnostic entities and may be absent when the upstream API does not provide the corresponding value.
 

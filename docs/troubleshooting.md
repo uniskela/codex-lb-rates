@@ -75,9 +75,12 @@ Entities for optional windows are only created when the provider reports a value
 - Spark quotas — Codex-LB only and only when returned;
 - reset entities — created only when a reset timestamp is returned.
 
-Also remember that rich diagnostic sensors are off by default.
+Also remember that optional sensors are off by default:
 
-Open **Settings → Devices & services → Codex-LB Rates → Configure** to enable rich sensors.
+- **Enable rich sensors** — plan, credit balance, last-refresh, and request-count diagnostics;
+- **Enable used-% sensors** — used-percentage entities for the same windows as remaining-% (remaining % stays primary).
+
+Open **Settings → Devices & services → Codex-LB Rates → Configure** to turn either option on.
 
 ## “Weekly” changed to “Daily” or another label
 
