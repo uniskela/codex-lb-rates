@@ -6,8 +6,9 @@ The recommended installation method is **HACS**. A manual install is also suppor
 
 - A reasonably current Home Assistant installation.
 - Network access from Home Assistant to:
-  - your Codex-LB server when using **Codex-LB mode**, or
+  - your Codex-LB server when using **Codex-LB mode** (LAN/Tailscale preferred; Cloudflare Access service token when using a public Access-gated hostname — see [Configuration](configuration.md#cloudflare-access-tunnel-hosts)), or
   - ChatGPT/OpenAI authentication and usage endpoints when using **ChatGPT / Codex CLI mode**.
+- For Codex-LB mode: dashboard/guest session credentials (password ± TOTP). Access service tokens are optional and separate from the Codex-LB login.
 - Home Assistant must be able to restart after the custom integration is installed or updated.
 
 ## Install with HACS

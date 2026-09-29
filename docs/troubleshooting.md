@@ -30,27 +30,42 @@ If HTTPS uses a self-signed certificate, prefer fixing trust/certificates. **Ver
 
 ## Codex-LB: “Invalid authentication”
 
+The generic setup message covers dashboard password/TOTP **or** Cloudflare Access. Prefer the specific code Home Assistant shows (and logs as `Codex-LB auth failed during setup (<code>): …`).
+
 Check which login mode the server actually allows:
 
 - **Admin** — dashboard password and optional TOTP secret;
 - **Guest** — read-only guest session, with a password only when the server requires one.
 
-Codex-LB API keys do not provide the dashboard-session access this integration needs for account quota data.
+Codex-LB API keys do not replace dashboard-session auth. Cloudflare Access is a separate layer: set **both** Access Client ID and Client Secret when the Base URL is Access-protected, and still configure the Codex-LB password (± TOTP). See [Configuration — Cloudflare Access](configuration.md#cloudflare-access-tunnel-hosts).
 
-If TOTP is enabled, verify the configured secret and system clocks.
+| UI / log code | Meaning |
+| --- | --- |
+| `invalid_password` | Wrong dashboard or guest password |
+| `password_required` | Password field left empty while the server requires one |
+| `totp_required` | Server requires TOTP; secret missing |
+| `invalid_totp` | TOTP secret wrong or clocks drifted |
+| `totp_enrollment_required` | Finish TOTP enrolment in the Codex-LB UI first |
+| `cloudflare_access` | Access challenge/HTML instead of Codex-LB JSON (token missing, wrong, or policy does not cover `/api/*`) |
+| `cf_access_incomplete` | Only one of Client ID / Client Secret was set |
+| `guest_disabled` | Guest mode selected but guest access is off |
+| `authentication_required` | Login appeared to succeed but `/api/accounts` still rejected the session |
+
+Runtime reauth failures appear as `[code] message` on the config entry.
+
+If TOTP is enabled, verify the configured secret and system clocks. For Access issues, confirm the Service Auth policy applies to the dashboard and `/api` paths (not only `/v1`).
 
 ## Codex-LB: Cloudflare Access HTML/challenge or Access authentication error
 
-This applies when the Codex-LB base URL is behind Cloudflare Access and the service token is missing or wrong.
+This applies when the Codex-LB base URL is behind Cloudflare Access and the service token is missing, incomplete, or wrong.
 
 Typical signs:
 
-- setup reports **Invalid authentication (dashboard password/TOTP or Cloudflare Access)**;
-- a later poll fails with an authentication error that Cloudflare Access blocked the request;
+- setup or options show `cloudflare_access` or `cf_access_incomplete` (or the older generic **Invalid authentication (dashboard password/TOTP or Cloudflare Access)** fallback);
+- a later poll fails with `[cloudflare_access] …` on the config entry;
 - the response is an Access HTML/challenge (login page) instead of dashboard JSON.
 
-Home Assistant cannot complete the browser Access login. A correct dashboard password does not replace the Access token. Add a Zero Trust service token and a **Service Auth** policy, then set **Cloudflare Access Client ID** and **Client Secret**. See [Configuration](configuration.md).
-
+Home Assistant cannot complete the browser Access login. A correct dashboard password does not replace the Access token. Add a Zero Trust service token and a **Service Auth** policy covering `/api/dashboard-auth/*` and `/api/accounts` (not only `/v1`), then set **both** **Cloudflare Access Client ID** and **Client Secret**. See [Configuration — Cloudflare Access](configuration.md#cloudflare-access-tunnel-hosts).
 ## ChatGPT: device-code login is still pending
 
 Finish authorization in the browser, return to Home Assistant, and submit again.

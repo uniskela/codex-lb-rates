@@ -12,7 +12,14 @@ class CodexRatesError(Exception):
 
 
 class CodexRatesAuthError(CodexRatesError):
-    """Authentication failed permanently until user reconfigures."""
+    """Authentication failed permanently until user reconfigures.
+
+    ``code`` is a stable machine key for config-flow translations and logs.
+    """
+
+    def __init__(self, message: str, *, code: str = "invalid_auth") -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class CodexRatesApiError(CodexRatesError):
