@@ -6,6 +6,7 @@ import aiohttp
 import pytest
 from aiohttp import web
 
+from custom_components.codex_rates.exceptions import CodexRatesApiError, CodexRatesAuthError
 from custom_components.codex_rates.providers.codex_lb import CodexLbProvider
 
 
@@ -509,3 +510,119 @@ async def test_codex_lb_raises_rate_limit_with_retry_after(aiohttp_client) -> No
 
     assert excinfo.value.retry_after == 120.0
     assert "429" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_codex_lb_sends_cloudflare_access_headers(aiohttp_client) -> None:
+    seen: dict[str, str] = {}
+
+    async def session_state(request: web.Request) -> web.Response:
+        seen["session_id"] = request.headers.get("CF-Access-Client-Id", "")
+        seen["session_secret"] = request.headers.get("CF-Access-Client-Secret", "")
+        return web.json_response({"authenticated": True, "passwordRequired": False})
+
+    async def accounts(request: web.Request) -> web.Response:
+        seen["accounts_id"] = request.headers.get("CF-Access-Client-Id", "")
+        seen["accounts_secret"] = request.headers.get("CF-Access-Client-Secret", "")
+        return web.json_response(
+            {
+                "accounts": [
+                    {
+                        "accountId": "acc_cf",
+                        "status": "active",
+                        "usage": {"primaryRemainingPercent": 12.0},
+                    }
+                ]
+            }
+        )
+
+    app = web.Application()
+    app.router.add_get("/api/dashboard-auth/session", session_state)
+    app.router.add_get("/api/accounts", accounts)
+    client = await aiohttp_client(app)
+
+    async with aiohttp.ClientSession() as session:
+        provider = CodexLbProvider(
+            session,
+            base_url=str(client.make_url("/")).rstrip("/"),
+            cf_access_client_id="client.access",
+            cf_access_client_secret="super-secret",
+        )
+        snapshot = await provider.async_validate()
+
+    assert snapshot.accounts[0].remaining_5h == 12.0
+    assert seen["session_id"] == "client.access"
+    assert seen["session_secret"] == "super-secret"
+    assert seen["accounts_id"] == "client.access"
+    assert seen["accounts_secret"] == "super-secret"
+
+
+@pytest.mark.asyncio
+async def test_codex_lb_detects_cloudflare_access_html(aiohttp_client) -> None:
+    async def session_state(request: web.Request) -> web.Response:
+        return web.Response(
+            text=(
+                "<!DOCTYPE html><html><body>"
+                "https://example.cloudflareaccess.com/cdn-cgi/access/login"
+                "</body></html>"
+            ),
+            content_type="text/html",
+            status=200,
+        )
+
+    app = web.Application()
+    app.router.add_get("/api/dashboard-auth/session", session_state)
+    client = await aiohttp_client(app)
+
+    async with aiohttp.ClientSession() as session:
+        provider = CodexLbProvider(
+            session, base_url=str(client.make_url("/")).rstrip("/")
+        )
+        with pytest.raises(CodexRatesAuthError, match="Cloudflare Access"):
+            await provider.async_validate()
+
+
+@pytest.mark.asyncio
+async def test_codex_lb_generic_html_is_api_error(aiohttp_client) -> None:
+    async def session_state(request: web.Request) -> web.Response:
+        return web.Response(
+            text="<!DOCTYPE html><html><body>proxy error</body></html>",
+            content_type="text/html",
+            status=502,
+        )
+
+    app = web.Application()
+    app.router.add_get("/api/dashboard-auth/session", session_state)
+    client = await aiohttp_client(app)
+
+    async with aiohttp.ClientSession() as session:
+        provider = CodexLbProvider(
+            session, base_url=str(client.make_url("/")).rstrip("/")
+        )
+        with pytest.raises(CodexRatesApiError, match="HTML instead of JSON"):
+            await provider.async_validate()
+
+
+@pytest.mark.asyncio
+async def test_codex_lb_html_401_is_auth_error(aiohttp_client) -> None:
+    async def accounts(request: web.Request) -> web.Response:
+        return web.Response(
+            text="<!DOCTYPE html><html><body>unauthorized</body></html>",
+            content_type="text/html",
+            status=401,
+        )
+
+    async def session_state(request: web.Request) -> web.Response:
+        return web.json_response({"authenticated": True, "passwordRequired": False})
+
+    app = web.Application()
+    app.router.add_get("/api/accounts", accounts)
+    app.router.add_get("/api/dashboard-auth/session", session_state)
+    client = await aiohttp_client(app)
+
+    async with aiohttp.ClientSession() as session:
+        provider = CodexLbProvider(
+            session, base_url=str(client.make_url("/")).rstrip("/")
+        )
+        with pytest.raises(CodexRatesAuthError, match="authentication required"):
+            await provider.async_fetch()

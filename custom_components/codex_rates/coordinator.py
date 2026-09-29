@@ -21,6 +21,8 @@ from .const import (
     CONF_ACCOUNT_ID,
     CONF_AUTH_JSON_PATH,
     CONF_BASE_URL,
+    CONF_CF_ACCESS_CLIENT_ID,
+    CONF_CF_ACCESS_CLIENT_SECRET,
     CONF_EMAIL,
     CONF_ID_TOKEN,
     CONF_LB_LOGIN,
@@ -119,6 +121,10 @@ class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
                 totp_secret=self.entry.data.get(CONF_TOTP_SECRET),
                 verify_ssl=self.entry.data.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
                 login_mode=self.entry.data.get(CONF_LB_LOGIN, DEFAULT_LB_LOGIN),
+                cf_access_client_id=self.entry.data.get(CONF_CF_ACCESS_CLIENT_ID),
+                cf_access_client_secret=self.entry.data.get(
+                    CONF_CF_ACCESS_CLIENT_SECRET
+                ),
             )
 
         async def _persist(tokens: dict[str, str]) -> None:
@@ -227,14 +233,14 @@ class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
                         account.last_refresh_at = now
             return snapshot
         except CodexRatesAuthError as err:
-            raise ConfigEntryAuthFailed(str(err)) from err
+            raise ConfigEntryAuthFailed(_error_message(err)) from err
         except CodexRatesRateLimitError as err:
             seconds = self._apply_rate_limit_cooldown(err)
             raise self._rate_limit_update_failed(remaining_seconds=seconds) from err
         except CodexRatesApiError as err:
-            raise UpdateFailed(str(err)) from err
+            raise UpdateFailed(_error_message(err)) from err
         except Exception as err:  # noqa: BLE001
-            raise UpdateFailed(str(err)) from err
+            raise UpdateFailed(_error_message(err)) from err
 
     def rebuild_provider(self) -> None:
         """Drop cached provider after options/data change."""
@@ -246,3 +252,11 @@ class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
         if self._lb_session is not None and not self._lb_session.closed:
             await self._lb_session.close()
         self._lb_session = None
+
+
+def _error_message(err: BaseException) -> str:
+    """Prefer a non-empty message for coordinator / UI logs."""
+    message = str(err).strip()
+    if message:
+        return message
+    return err.__class__.__name__ or "Unknown error"

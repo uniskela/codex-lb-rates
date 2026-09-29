@@ -40,7 +40,18 @@ Full instructions: **[Installation](https://uniskela.com/docs/codex-lb-rates/ins
 | **Codex-LB** | Multiple accounts behind a Codex-LB server | Admin dashboard session, or read-only Guest session when enabled |
 | **ChatGPT / Codex CLI** | Monitoring one ChatGPT account directly | Device code (recommended), browser paste-callback, mounted `auth.json`, or advanced tokens |
 
-Codex-LB API keys cannot read the account quota endpoint used by this integration; use the dashboard/guest session flow.
+Codex-LB API keys cannot read the account quota endpoint used by this integration; use the dashboard/guest session flow. A Cloudflare Access bypass on `/v1` alone is not enough — this integration uses `/api/dashboard-auth/*` and `/api/accounts`.
+
+### Cloudflare Access (tunnel hosts)
+
+Home Assistant cannot complete the browser Access login. Use a [service token](https://developers.cloudflare.com/cloudflare-one/access-controls/service-credentials/service-tokens/) instead:
+
+1. Zero Trust → **Access** → **Service credentials** → create a service token; copy Client ID and Client Secret.
+2. On the Access application for your Codex-LB hostname, add a **Service Auth** policy that includes that token (keep your normal Allow policy for humans on `/login`).
+3. In this integration, set **Cloudflare Access Client ID** and **Client Secret** (also editable later under **Configure**).
+4. Keep dashboard admin/guest password fields as usual — Access and Codex-LB login are separate layers.
+
+Prefer a LAN URL when HA and Codex-LB share a private network and you do not need the public tunnel.
 
 See **[Configuration](https://uniskela.com/docs/codex-lb-rates/configuration/)** for the complete setup guide.
 
@@ -78,16 +89,16 @@ Open **Settings → Devices & services → Codex-LB Rates → Configure**.
 - **Enable rich sensors** — plan, credit balance, last-refresh, and request-count diagnostics when available.
 - **Enable used-% sensors** — off by default; adds optional used-percentage entities for the same quota windows. Remaining % stays primary.
 - **Reset sensor display** — countdown or local absolute date/time.
+- **Cloudflare Access Client ID / Secret** (Codex-LB only) — optional Zero Trust service token for Access-protected hosts; leave the secret blank to keep the stored value.
 
 ## Security
 
 - Credentials are stored in the Home Assistant config entry rather than `configuration.yaml`.
-- Password, TOTP, access-token, refresh-token, and ID-token fields are redacted from integration diagnostics.
+- Password, TOTP, Cloudflare Access client secret, access-token, refresh-token, and ID-token fields are redacted from integration diagnostics.
 - Codex-LB uses a private HTTP session so its dashboard cookies are not shared with other integrations.
 - Diagnostics can still contain account IDs, email addresses, quota values, and timing information; review them before sharing publicly.
 
 See [SECURITY.md](SECURITY.md) for vulnerability reporting.
-
 ## Development
 
 ```bash

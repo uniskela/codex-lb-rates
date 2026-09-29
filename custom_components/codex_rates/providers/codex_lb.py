@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 from math import isfinite
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import aiohttp
 import pyotp
@@ -32,6 +34,12 @@ _LOGGER = logging.getLogger(__name__)
 # Account rows may carry a provider label; keep ChatGPT/Codex pool members only.
 _ACCOUNT_PROVIDERS = frozenset({"openai", "codex", ""})
 
+_CF_ACCESS_ERROR = (
+    "Cloudflare Access blocked this request — create a Zero Trust service token, "
+    "add a Service Auth policy for this app, and set CF-Access-Client-Id / "
+    "CF-Access-Client-Secret in the integration"
+)
+
 
 class CodexLbProvider:
     """Fetch per-account quotas from a Codex-LB instance."""
@@ -45,6 +53,8 @@ class CodexLbProvider:
         totp_secret: str | None = None,
         verify_ssl: bool = True,
         login_mode: str = "admin",
+        cf_access_client_id: str | None = None,
+        cf_access_client_secret: str | None = None,
     ) -> None:
         self._session = session
         self._base_url = base_url.rstrip("/") + "/"
@@ -52,6 +62,8 @@ class CodexLbProvider:
         self._totp_secret = (totp_secret or "").strip() or None
         self._verify_ssl = verify_ssl
         self._login_mode = (login_mode or "admin").strip().lower()
+        self._cf_client_id = (cf_access_client_id or "").strip() or None
+        self._cf_client_secret = (cf_access_client_secret or "").strip() or None
         self._cookie: str | None = None
         self._cookie_name: str | None = None
 
@@ -73,13 +85,15 @@ class CodexLbProvider:
 
     async def _fetch_accounts(self) -> ProviderSnapshot:
         url = urljoin(self._base_url, "api/accounts")
-        headers = self._auth_headers()
+        headers = self._request_headers()
         async with self._session.get(
             url,
             headers=headers,
+            allow_redirects=False,
             ssl=self._verify_ssl,
             timeout=aiohttp.ClientTimeout(total=30),
         ) as resp:
+            data = await _parse_lb_json(resp)
             if resp.status in (401, 403):
                 raise CodexRatesAuthError("Codex-LB authentication required")
             if resp.status == 429:
@@ -87,7 +101,6 @@ class CodexLbProvider:
                     "Codex-LB rate limited (HTTP 429)",
                     retry_after=parse_retry_after(resp.headers.get("Retry-After")),
                 )
-            data = await _safe_json(resp)
             if resp.status >= 400:
                 raise CodexRatesApiError(f"Codex-LB accounts failed ({resp.status})")
         accounts_raw = data.get("accounts") if isinstance(data, dict) else None
@@ -129,10 +142,12 @@ class CodexLbProvider:
         session_url = urljoin(self._base_url, "api/dashboard-auth/session")
         async with self._session.get(
             session_url,
+            headers=self._request_headers(include_cookie=False),
+            allow_redirects=False,
             ssl=self._verify_ssl,
             timeout=aiohttp.ClientTimeout(total=15),
         ) as resp:
-            session_state = await _safe_json(resp)
+            session_state = await _parse_lb_json(resp)
             self._capture_cookies(resp)
         return session_state if isinstance(session_state, dict) else {}
 
@@ -167,10 +182,12 @@ class CodexLbProvider:
         async with self._session.post(
             login_url,
             json=payload,
+            headers=self._request_headers(),
+            allow_redirects=False,
             ssl=self._verify_ssl,
             timeout=aiohttp.ClientTimeout(total=15),
         ) as resp:
-            data = await _safe_json(resp)
+            data = await _parse_lb_json(resp)
             self._capture_cookies(resp)
             if resp.status >= 400:
                 raise CodexRatesAuthError(
@@ -213,10 +230,12 @@ class CodexLbProvider:
             async with self._session.post(
                 login_url,
                 json={"password": self._password},
+                headers=self._request_headers(),
+                allow_redirects=False,
                 ssl=self._verify_ssl,
                 timeout=aiohttp.ClientTimeout(total=15),
             ) as resp:
-                data = await _safe_json(resp)
+                data = await _parse_lb_json(resp)
                 self._capture_cookies(resp)
                 if resp.status >= 400:
                     raise CodexRatesAuthError(
@@ -243,10 +262,12 @@ class CodexLbProvider:
             async with self._session.post(
                 totp_url,
                 json={"code": code, "totp_code": code},
+                headers=self._request_headers(),
+                allow_redirects=False,
                 ssl=self._verify_ssl,
                 timeout=aiohttp.ClientTimeout(total=15),
             ) as resp:
-                data = await _safe_json(resp)
+                data = await _parse_lb_json(resp)
                 self._capture_cookies(resp)
                 if resp.status >= 400:
                     raise CodexRatesAuthError(
@@ -276,10 +297,19 @@ class CodexLbProvider:
                         self._cookie = part
                         return
 
+    def _request_headers(self, *, include_cookie: bool = True) -> dict[str, str]:
+        """Build Cloudflare Access + dashboard session headers."""
+        headers: dict[str, str] = {}
+        if self._cf_client_id and self._cf_client_secret:
+            headers["CF-Access-Client-Id"] = self._cf_client_id
+            headers["CF-Access-Client-Secret"] = self._cf_client_secret
+        if include_cookie and self._cookie and self._cookie_name:
+            headers["Cookie"] = f"{self._cookie_name}={self._cookie}"
+        return headers
+
     def _auth_headers(self) -> dict[str, str]:
-        if self._cookie and self._cookie_name:
-            return {"Cookie": f"{self._cookie_name}={self._cookie}"}
-        return {}
+        """Backward-compatible alias for request headers with cookie."""
+        return self._request_headers()
 
     @staticmethod
     def _map_account(item: dict[str, Any]) -> AccountQuota:
@@ -605,9 +635,70 @@ def _lb_error(data: dict[str, Any] | None, fallback: str) -> str:
     return fallback
 
 
-async def _safe_json(resp: aiohttp.ClientResponse) -> dict[str, Any]:
+_CF_ACCESS_URL_RE = re.compile(r"https?://[^\s\"'<>]+", re.IGNORECASE)
+
+
+def _host_is_cloudflare_access(url_or_host: str) -> bool:
+    """True when hostname is cloudflareaccess.com or a subdomain of it."""
+    raw = (url_or_host or "").strip()
+    if not raw:
+        return False
+    host = urlparse(raw if "://" in raw else f"https://{raw}").hostname
+    if not host:
+        return False
+    host = host.lower()
+    return host == "cloudflareaccess.com" or host.endswith(".cloudflareaccess.com")
+
+
+def _text_has_cloudflare_access_url(text: str) -> bool:
+    """True when body text contains an absolute cloudflareaccess.com URL."""
+    for match in _CF_ACCESS_URL_RE.findall(text):
+        if _host_is_cloudflare_access(match):
+            return True
+    return False
+
+
+def _looks_like_cloudflare_access(
+    *, text: str, content_type: str, location: str, status: int
+) -> bool:
+    """Return True when the response is a Cloudflare Access challenge/login page."""
+    if location and _host_is_cloudflare_access(location):
+        return True
+    text_l = text.lower()
+    if _text_has_cloudflare_access_url(text):
+        return True
+    if "cf-access-domain" in text_l or "cf_authorization" in text_l:
+        return True
+    if "<html" in text_l and "cloudflare" in text_l and "access" in text_l:
+        return True
+    return False
+
+
+async def _parse_lb_json(resp: aiohttp.ClientResponse) -> dict[str, Any]:
+    """Parse JSON body; raise when Cloudflare Access returns a login challenge."""
+    content_type = resp.content_type or resp.headers.get("Content-Type") or ""
+    location = resp.headers.get("Location") or ""
+    raw = await resp.read()
+    text = raw.decode(errors="replace")
+    if _looks_like_cloudflare_access(
+        text=text,
+        content_type=content_type,
+        location=location,
+        status=resp.status,
+    ):
+        raise CodexRatesAuthError(_CF_ACCESS_ERROR)
+    if not text.strip():
+        return {}
     try:
-        data = await resp.json(content_type=None)
+        data = json.loads(text)
     except Exception:  # noqa: BLE001
+        if text.lstrip().startswith("<"):
+            if resp.status in (401, 403):
+                raise CodexRatesAuthError(
+                    "Codex-LB authentication required"
+                ) from None
+            raise CodexRatesApiError(
+                "Codex-LB returned HTML instead of JSON"
+            ) from None
         return {}
     return data if isinstance(data, dict) else {}
