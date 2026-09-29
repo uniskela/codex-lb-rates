@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/uniskela/codex-lb-rates/compare/v0.9.0...v0.9.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* surface specific Codex-LB auth failure codes ([#54](https://github.com/uniskela/codex-lb-rates/issues/54)) ([79d77d5](https://github.com/uniskela/codex-lb-rates/commit/79d77d560da78f06b018cc4ac404bac7561d114d))
+
 ## [0.9.0](https://github.com/uniskela/codex-lb-rates/compare/v0.8.1...v0.9.0) (2026-09-29)
 
 
