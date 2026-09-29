@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from math import isfinite
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import aiohttp
 import pyotp
@@ -629,15 +630,37 @@ def _lb_error(data: dict[str, Any] | None, fallback: str) -> str:
     return fallback
 
 
+_CF_ACCESS_URL_RE = re.compile(r"https?://[^\s\"'<>]+", re.IGNORECASE)
+
+
+def _host_is_cloudflare_access(url_or_host: str) -> bool:
+    """True when hostname is cloudflareaccess.com or a subdomain of it."""
+    raw = (url_or_host or "").strip()
+    if not raw:
+        return False
+    host = urlparse(raw if "://" in raw else f"https://{raw}").hostname
+    if not host:
+        return False
+    host = host.lower()
+    return host == "cloudflareaccess.com" or host.endswith(".cloudflareaccess.com")
+
+
+def _text_has_cloudflare_access_url(text: str) -> bool:
+    """True when body text contains an absolute cloudflareaccess.com URL."""
+    for match in _CF_ACCESS_URL_RE.findall(text):
+        if _host_is_cloudflare_access(match):
+            return True
+    return False
+
+
 def _looks_like_cloudflare_access(
     *, text: str, content_type: str, location: str, status: int
 ) -> bool:
     """Return True when the response is a Cloudflare Access challenge/login page."""
-    location_l = location.lower()
-    if "cloudflareaccess.com" in location_l:
+    if location and _host_is_cloudflare_access(location):
         return True
     text_l = text.lower()
-    if "cloudflareaccess.com" in text_l:
+    if _text_has_cloudflare_access_url(text):
         return True
     if "cf-access-domain" in text_l or "cf_authorization" in text_l:
         return True
