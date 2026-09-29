@@ -53,6 +53,8 @@ Home Assistant cannot complete the browser Access login. Use a [service token](h
 
 Prefer a LAN URL when HA and Codex-LB share a private network and you do not need the public tunnel.
 
+Setup failures report specific auth codes (password, TOTP, Access, and similar) — see [Troubleshooting](https://uniskela.com/docs/codex-lb-rates/troubleshooting/).
+
 See **[Configuration](https://uniskela.com/docs/codex-lb-rates/configuration/)** for the complete setup guide.
 
 ## Documentation

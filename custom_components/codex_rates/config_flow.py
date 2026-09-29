@@ -67,6 +67,31 @@ from .providers.codex_lb import CodexLbProvider
 
 _LOGGER = logging.getLogger(__name__)
 
+# CodexRatesAuthError.code → config/strings.json error key (Codex-LB setup).
+_LB_AUTH_ERROR_KEYS = frozenset(
+    {
+        "invalid_password",
+        "password_required",
+        "totp_required",
+        "invalid_totp",
+        "totp_enrollment_required",
+        "guest_disabled",
+        "guest_password_required",
+        "cloudflare_access",
+        "cf_access_incomplete",
+        "authentication_required",
+        "username_required",
+        "invalid_auth",
+    }
+)
+
+
+def _lb_auth_error_key(err: CodexRatesAuthError) -> str:
+    code = getattr(err, "code", None) or "invalid_auth"
+    if code in _LB_AUTH_ERROR_KEYS:
+        return code
+    return "invalid_auth"
+
 
 def _cf_access_pair_incomplete(client_id: str | None, client_secret: str | None) -> bool:
     """True when exactly one of the Cloudflare Access credentials is set."""
@@ -127,7 +152,7 @@ class CodexRatesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 cf_id = (user_input.get(CONF_CF_ACCESS_CLIENT_ID) or "").strip()
                 cf_secret = (user_input.get(CONF_CF_ACCESS_CLIENT_SECRET) or "").strip()
                 if _cf_access_pair_incomplete(cf_id, cf_secret):
-                    errors["base"] = "invalid_auth"
+                    errors["base"] = "cf_access_incomplete"
                 else:
                     session = async_get_clientsession(self.hass)
                     provider = CodexLbProvider(
@@ -142,8 +167,13 @@ class CodexRatesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     )
                     try:
                         await provider.async_validate()
-                    except CodexRatesAuthError:
-                        errors["base"] = "invalid_auth"
+                    except CodexRatesAuthError as err:
+                        errors["base"] = _lb_auth_error_key(err)
+                        _LOGGER.warning(
+                            "Codex-LB auth failed during setup (%s): %s",
+                            getattr(err, "code", "invalid_auth"),
+                            err,
+                        )
                     except (CodexRatesApiError, aiohttp.ClientError, TimeoutError):
                         errors["base"] = "cannot_connect"
                     except Exception:  # noqa: BLE001
@@ -500,7 +530,7 @@ class CodexRatesOptionsFlow(config_entries.OptionsFlow):
                     data.get(CONF_CF_ACCESS_CLIENT_ID),
                     data.get(CONF_CF_ACCESS_CLIENT_SECRET),
                 ):
-                    errors["base"] = "invalid_auth"
+                    errors["base"] = "cf_access_incomplete"
                 else:
                     session = async_get_clientsession(self.hass)
                     provider = CodexLbProvider(
@@ -515,8 +545,13 @@ class CodexRatesOptionsFlow(config_entries.OptionsFlow):
                     )
                     try:
                         await provider.async_validate()
-                    except CodexRatesAuthError:
-                        errors["base"] = "invalid_auth"
+                    except CodexRatesAuthError as err:
+                        errors["base"] = _lb_auth_error_key(err)
+                        _LOGGER.warning(
+                            "Codex-LB auth failed during options (%s): %s",
+                            getattr(err, "code", "invalid_auth"),
+                            err,
+                        )
                     except (CodexRatesApiError, aiohttp.ClientError, TimeoutError):
                         errors["base"] = "cannot_connect"
                     except Exception:  # noqa: BLE001

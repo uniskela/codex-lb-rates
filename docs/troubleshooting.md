@@ -30,14 +30,30 @@ If HTTPS uses a self-signed certificate, prefer fixing trust/certificates. **Ver
 
 ## Codex-LB: “Invalid authentication”
 
+The generic setup message covers dashboard password/TOTP **or** Cloudflare Access. Prefer the specific code Home Assistant shows (and logs as `Codex-LB auth failed during setup (<code>): …`).
+
 Check which login mode the server actually allows:
 
 - **Admin** — dashboard password and optional TOTP secret;
 - **Guest** — read-only guest session, with a password only when the server requires one.
 
-Codex-LB API keys do not provide the dashboard-session access this integration needs for account quota data.
+Codex-LB API keys do not replace dashboard-session auth. Cloudflare Access is a separate layer: set **both** Access Client ID and Client Secret when the Base URL is Access-protected, and still configure the Codex-LB password (± TOTP). See [Configuration — Cloudflare Access](configuration.md#cloudflare-access-tunnel-hosts).
 
-If TOTP is enabled, verify the configured secret and system clocks.
+| UI / log code | Meaning |
+| --- | --- |
+| `invalid_password` | Wrong dashboard or guest password |
+| `password_required` | Password field left empty while the server requires one |
+| `totp_required` | Server requires TOTP; secret missing |
+| `invalid_totp` | TOTP secret wrong or clocks drifted |
+| `totp_enrollment_required` | Finish TOTP enrolment in the Codex-LB UI first |
+| `cloudflare_access` | Access challenge/HTML instead of Codex-LB JSON (token missing, wrong, or policy does not cover `/api/*`) |
+| `cf_access_incomplete` | Only one of Client ID / Client Secret was set |
+| `guest_disabled` | Guest mode selected but guest access is off |
+| `authentication_required` | Login appeared to succeed but `/api/accounts` still rejected the session |
+
+Runtime reauth failures appear as `[code] message` on the config entry.
+
+If TOTP is enabled, verify the configured secret and system clocks. For Access issues, confirm the Service Auth policy applies to the dashboard and `/api` paths (not only `/v1`).
 
 ## ChatGPT: device-code login is still pending
 
@@ -218,7 +234,7 @@ Diagnostics include useful support data such as:
 - exact reset timestamps and calculated time remaining;
 - pool counts/aggregates.
 
-Passwords, TOTP secrets, and OAuth tokens are redacted.
+Passwords, TOTP secrets, Cloudflare Access client secrets, and OAuth tokens are redacted.
 
 > [!CAUTION]
 > Diagnostics can still contain account IDs, email addresses, plan information, quota values, and reset timing. Review the file before posting it publicly.
@@ -235,6 +251,6 @@ Useful reports include:
 - whether a restart/reload changes the result;
 - redacted diagnostics when relevant.
 
-Do not post passwords, TOTP secrets, access tokens, refresh tokens, ID tokens, or unreviewed diagnostics.
+Do not post passwords, TOTP secrets, Cloudflare Access client secrets, access tokens, refresh tokens, ID tokens, or unreviewed diagnostics.
 
 Use the repository's [issue tracker](https://github.com/uniskela/codex-lb-rates/issues) for bugs. Security-sensitive reports should follow [SECURITY.md](../SECURITY.md).
