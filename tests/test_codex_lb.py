@@ -6,7 +6,11 @@ import aiohttp
 import pytest
 from aiohttp import web
 
-from custom_components.codex_rates.exceptions import CodexRatesApiError, CodexRatesAuthError
+from custom_components.codex_rates.exceptions import (
+    CodexRatesApiError,
+    CodexRatesAuthError,
+    CodexRatesRateLimitError,
+)
 from custom_components.codex_rates.providers.codex_lb import CodexLbProvider
 
 
@@ -484,8 +488,6 @@ async def test_codex_lb_prefers_account_id_over_generic_id(aiohttp_client) -> No
 
 @pytest.mark.asyncio
 async def test_codex_lb_raises_rate_limit_with_retry_after(aiohttp_client) -> None:
-    from custom_components.codex_rates.exceptions import CodexRatesRateLimitError
-
     async def accounts(request: web.Request) -> web.Response:
         return web.json_response(
             {"error": "too many requests"},
@@ -626,3 +628,110 @@ async def test_codex_lb_html_401_is_auth_error(aiohttp_client) -> None:
         )
         with pytest.raises(CodexRatesAuthError, match="authentication required"):
             await provider.async_fetch()
+
+
+@pytest.mark.asyncio
+async def test_codex_lb_invalid_password_code(aiohttp_client) -> None:
+    async def session_get(request: web.Request) -> web.Response:
+        return web.json_response(
+            {
+                "authenticated": False,
+                "password_required": True,
+                "totp_required_on_login": False,
+            }
+        )
+
+    async def login(request: web.Request) -> web.Response:
+        return web.json_response(
+            {"error": {"code": "invalid_credentials", "message": "Wrong password"}},
+            status=401,
+        )
+
+    app = web.Application()
+    app.router.add_get("/api/dashboard-auth/session", session_get)
+    app.router.add_post("/api/dashboard-auth/password/login", login)
+    client = await aiohttp_client(app)
+
+    async with aiohttp.ClientSession() as session:
+        provider = CodexLbProvider(
+            session,
+            base_url=str(client.make_url("/")).rstrip("/"),
+            password="wrong",
+        )
+        with pytest.raises(CodexRatesAuthError) as excinfo:
+            await provider.async_validate()
+
+    assert excinfo.value.code == "invalid_password"
+    assert "Wrong password" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_codex_lb_totp_required_code(aiohttp_client) -> None:
+    async def session_get(request: web.Request) -> web.Response:
+        return web.json_response(
+            {
+                "authenticated": False,
+                "password_required": True,
+                "totp_required_on_login": True,
+            }
+        )
+
+    async def login(request: web.Request) -> web.Response:
+        resp = web.json_response(
+            {"authenticated": False, "totp_required_on_login": True}
+        )
+        resp.set_cookie("codex_lb_dashboard_session", "partial")
+        return resp
+
+    app = web.Application()
+    app.router.add_get("/api/dashboard-auth/session", session_get)
+    app.router.add_post("/api/dashboard-auth/password/login", login)
+    client = await aiohttp_client(app)
+
+    async with aiohttp.ClientSession() as session:
+        provider = CodexLbProvider(
+            session,
+            base_url=str(client.make_url("/")).rstrip("/"),
+            password="secret",
+        )
+        with pytest.raises(CodexRatesAuthError) as excinfo:
+            await provider.async_validate()
+
+    assert excinfo.value.code == "totp_required"
+
+
+@pytest.mark.asyncio
+async def test_codex_lb_cloudflare_access_sets_code(aiohttp_client) -> None:
+    async def session_state(request: web.Request) -> web.Response:
+        return web.Response(
+            text=(
+                "<!DOCTYPE html><html><body>"
+                "https://example.cloudflareaccess.com/cdn-cgi/access/login"
+                "</body></html>"
+            ),
+            content_type="text/html",
+            status=200,
+        )
+
+    app = web.Application()
+    app.router.add_get("/api/dashboard-auth/session", session_state)
+    client = await aiohttp_client(app)
+
+    async with aiohttp.ClientSession() as session:
+        provider = CodexLbProvider(
+            session, base_url=str(client.make_url("/")).rstrip("/")
+        )
+        with pytest.raises(CodexRatesAuthError) as excinfo:
+            await provider.async_validate()
+
+    assert excinfo.value.code == "cloudflare_access"
+
+
+def test_lb_auth_error_key_mapping() -> None:
+    from custom_components.codex_rates.config_flow import _lb_auth_error_key
+
+    assert (
+        _lb_auth_error_key(CodexRatesAuthError("x", code="invalid_totp"))
+        == "invalid_totp"
+    )
+    assert _lb_auth_error_key(CodexRatesAuthError("x", code="nope")) == "invalid_auth"

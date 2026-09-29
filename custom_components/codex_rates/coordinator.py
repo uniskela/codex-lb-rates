@@ -233,7 +233,8 @@ class CodexRatesCoordinator(DataUpdateCoordinator[ProviderSnapshot]):
                         account.last_refresh_at = now
             return snapshot
         except CodexRatesAuthError as err:
-            raise ConfigEntryAuthFailed(_error_message(err)) from err
+            code = getattr(err, "code", "invalid_auth")
+            raise ConfigEntryAuthFailed(f"[{code}] {_error_message(err)}") from err
         except CodexRatesRateLimitError as err:
             seconds = self._apply_rate_limit_cooldown(err)
             raise self._rate_limit_update_failed(remaining_seconds=seconds) from err

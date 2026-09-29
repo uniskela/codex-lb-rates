@@ -95,7 +95,10 @@ class CodexLbProvider:
         ) as resp:
             data = await _parse_lb_json(resp)
             if resp.status in (401, 403):
-                raise CodexRatesAuthError("Codex-LB authentication required")
+                raise CodexRatesAuthError(
+                    "Codex-LB authentication required",
+                    code="authentication_required",
+                )
             if resp.status == 429:
                 raise CodexRatesRateLimitError(
                     "Codex-LB rate limited (HTTP 429)",
@@ -172,10 +175,14 @@ class CodexLbProvider:
             or "guest_access_enabled" in session_state
         ):
             raise CodexRatesAuthError(
-                "Codex-LB guest access is disabled on this server"
+                "Codex-LB guest access is disabled on this server",
+                code="guest_disabled",
             )
         if guest_password_required and not self._password:
-            raise CodexRatesAuthError("Codex-LB guest password is required")
+            raise CodexRatesAuthError(
+                "Codex-LB guest password is required",
+                code="guest_password_required",
+            )
 
         login_url = urljoin(self._base_url, "api/dashboard-auth/guest/login")
         payload = {"password": self._password} if self._password else {}
@@ -190,12 +197,17 @@ class CodexLbProvider:
             data = await _parse_lb_json(resp)
             self._capture_cookies(resp)
             if resp.status >= 400:
-                raise CodexRatesAuthError(
-                    _lb_error(data, "Codex-LB guest login failed")
+                raise _auth_error_from_lb(
+                    data,
+                    fallback_message="Codex-LB guest login failed",
+                    fallback_code="invalid_password",
                 )
 
         if data and _first(data, "authenticated") is False:
-            raise CodexRatesAuthError("Codex-LB guest login was not authenticated")
+            raise CodexRatesAuthError(
+                "Codex-LB guest login was not authenticated",
+                code="invalid_password",
+            )
 
         if not self._cookie:
             _LOGGER.debug(
@@ -222,7 +234,10 @@ class CodexLbProvider:
             return
 
         if password_required and not self._password:
-            raise CodexRatesAuthError("Codex-LB dashboard password is required")
+            raise CodexRatesAuthError(
+                "Codex-LB dashboard password is required",
+                code="password_required",
+            )
 
         data: dict[str, Any] | None = None
         if self._password:
@@ -238,8 +253,10 @@ class CodexLbProvider:
                 data = await _parse_lb_json(resp)
                 self._capture_cookies(resp)
                 if resp.status >= 400:
-                    raise CodexRatesAuthError(
-                        _lb_error(data, "Invalid Codex-LB password")
+                    raise _auth_error_from_lb(
+                        data,
+                        fallback_message="Invalid Codex-LB password",
+                        fallback_code="invalid_password",
                     )
 
             totp_required = bool(
@@ -255,7 +272,8 @@ class CodexLbProvider:
         if totp_required:
             if not self._totp_secret:
                 raise CodexRatesAuthError(
-                    "Codex-LB requires TOTP — provide a TOTP secret"
+                    "Codex-LB requires TOTP — provide a TOTP secret",
+                    code="totp_required",
                 )
             code = pyotp.TOTP(self._totp_secret).now()
             totp_url = urljoin(self._base_url, "api/dashboard-auth/totp/verify")
@@ -270,8 +288,10 @@ class CodexLbProvider:
                 data = await _parse_lb_json(resp)
                 self._capture_cookies(resp)
                 if resp.status >= 400:
-                    raise CodexRatesAuthError(
-                        _lb_error(data, "Invalid Codex-LB TOTP code")
+                    raise _auth_error_from_lb(
+                        data,
+                        fallback_message="Invalid Codex-LB TOTP code",
+                        fallback_code="invalid_totp",
                     )
 
         if not self._cookie:
@@ -624,15 +644,50 @@ def _credits_str(item: dict[str, Any]) -> str | None:
     return None
 
 
-def _lb_error(data: dict[str, Any] | None, fallback: str) -> str:
+# Codex-LB dashboard envelope codes → config-flow translation keys.
+_LB_AUTH_CODE_MAP: dict[str, str] = {
+    "invalid_credentials": "invalid_password",
+    "authentication_required": "authentication_required",
+    "totp_required": "totp_required",
+    "totp_enrollment_required": "totp_enrollment_required",
+    "invalid_totp_code": "invalid_totp",
+    "invalid_totp_setup": "invalid_totp",
+    "username_required": "username_required",
+}
+
+
+def _lb_error_parts(
+    data: dict[str, Any] | None, *, fallback_message: str, fallback_code: str
+) -> tuple[str, str]:
+    """Return (message, code) from a Codex-LB dashboard error envelope."""
     if not isinstance(data, dict):
-        return fallback
+        return fallback_message, fallback_code
     err = data.get("error")
-    if isinstance(err, dict) and isinstance(err.get("message"), str):
-        return err["message"]
-    if isinstance(data.get("message"), str):
-        return data["message"]
-    return fallback
+    if isinstance(err, dict):
+        raw_code = err.get("code")
+        mapped = (
+            _LB_AUTH_CODE_MAP.get(raw_code, fallback_code)
+            if isinstance(raw_code, str)
+            else fallback_code
+        )
+        if isinstance(err.get("message"), str) and err["message"]:
+            return err["message"], mapped
+        return fallback_message, mapped
+    if isinstance(data.get("message"), str) and data["message"]:
+        return data["message"], fallback_code
+    return fallback_message, fallback_code
+
+
+def _auth_error_from_lb(
+    data: dict[str, Any] | None,
+    *,
+    fallback_message: str,
+    fallback_code: str,
+) -> CodexRatesAuthError:
+    message, code = _lb_error_parts(
+        data, fallback_message=fallback_message, fallback_code=fallback_code
+    )
+    return CodexRatesAuthError(message, code=code)
 
 
 _CF_ACCESS_URL_RE = re.compile(r"https?://[^\s\"'<>]+", re.IGNORECASE)
@@ -686,7 +741,7 @@ async def _parse_lb_json(resp: aiohttp.ClientResponse) -> dict[str, Any]:
         location=location,
         status=resp.status,
     ):
-        raise CodexRatesAuthError(_CF_ACCESS_ERROR)
+        raise CodexRatesAuthError(_CF_ACCESS_ERROR, code="cloudflare_access")
     if not text.strip():
         return {}
     try:
@@ -695,7 +750,8 @@ async def _parse_lb_json(resp: aiohttp.ClientResponse) -> dict[str, Any]:
         if text.lstrip().startswith("<"):
             if resp.status in (401, 403):
                 raise CodexRatesAuthError(
-                    "Codex-LB authentication required"
+                    "Codex-LB authentication required",
+                    code="authentication_required",
                 ) from None
             raise CodexRatesApiError(
                 "Codex-LB returned HTML instead of JSON"

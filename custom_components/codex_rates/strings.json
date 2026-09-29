@@ -65,9 +65,20 @@
     "error": {
       "cannot_connect": "Could not connect",
       "invalid_auth": "Invalid authentication (dashboard password/TOTP or Cloudflare Access)",
+      "invalid_password": "Invalid dashboard password",
+      "password_required": "Dashboard password is required",
+      "totp_required": "TOTP is required — enter the TOTP secret from Codex-LB",
+      "invalid_totp": "Invalid TOTP code (check the secret and clock sync)",
+      "totp_enrollment_required": "This account must finish TOTP enrolment in the Codex-LB dashboard first",
+      "guest_disabled": "Guest access is disabled on this Codex-LB server",
+      "guest_password_required": "Guest password is required",
+      "cloudflare_access": "Cloudflare Access blocked the request — check the service token Client ID/Secret and Service Auth policy",
+      "cf_access_incomplete": "Cloudflare Access needs both Client ID and Client Secret (or leave both empty)",
+      "authentication_required": "Codex-LB session auth failed after login",
+      "username_required": "This Codex-LB install requires a username (multi-user) — not supported yet; use a single-user password session",
       "invalid_url": "Invalid URL",
       "unknown": "Unexpected error",
-      "oauth_timeout": "Still waiting for authorization \u2014 finish sign-in, then submit again",
+      "oauth_timeout": "Still waiting for authorization — finish sign-in, then submit again",
       "auth_json_missing": "auth.json not found"
     },
     "abort": {
@@ -100,6 +111,17 @@
     "error": {
       "cannot_connect": "Could not connect",
       "invalid_auth": "Invalid authentication (dashboard password/TOTP or Cloudflare Access)",
+      "invalid_password": "Invalid dashboard password",
+      "password_required": "Dashboard password is required",
+      "totp_required": "TOTP is required — enter the TOTP secret from Codex-LB",
+      "invalid_totp": "Invalid TOTP code (check the secret and clock sync)",
+      "totp_enrollment_required": "This account must finish TOTP enrolment in the Codex-LB dashboard first",
+      "guest_disabled": "Guest access is disabled on this Codex-LB server",
+      "guest_password_required": "Guest password is required",
+      "cloudflare_access": "Cloudflare Access blocked the request — check the service token Client ID/Secret and Service Auth policy",
+      "cf_access_incomplete": "Cloudflare Access needs both Client ID and Client Secret (or leave both empty)",
+      "authentication_required": "Codex-LB session auth failed after login",
+      "username_required": "This Codex-LB install requires a username (multi-user) — not supported yet; use a single-user password session",
       "unknown": "Unexpected error"
     }
   },
