@@ -601,3 +601,28 @@ async def test_codex_lb_generic_html_is_api_error(aiohttp_client) -> None:
         )
         with pytest.raises(CodexRatesApiError, match="HTML instead of JSON"):
             await provider.async_validate()
+
+
+@pytest.mark.asyncio
+async def test_codex_lb_html_401_is_auth_error(aiohttp_client) -> None:
+    async def accounts(request: web.Request) -> web.Response:
+        return web.Response(
+            text="<!DOCTYPE html><html><body>unauthorized</body></html>",
+            content_type="text/html",
+            status=401,
+        )
+
+    async def session_state(request: web.Request) -> web.Response:
+        return web.json_response({"authenticated": True, "passwordRequired": False})
+
+    app = web.Application()
+    app.router.add_get("/api/accounts", accounts)
+    app.router.add_get("/api/dashboard-auth/session", session_state)
+    client = await aiohttp_client(app)
+
+    async with aiohttp.ClientSession() as session:
+        provider = CodexLbProvider(
+            session, base_url=str(client.make_url("/")).rstrip("/")
+        )
+        with pytest.raises(CodexRatesAuthError, match="authentication required"):
+            await provider.async_fetch()

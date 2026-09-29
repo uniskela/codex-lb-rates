@@ -693,6 +693,10 @@ async def _parse_lb_json(resp: aiohttp.ClientResponse) -> dict[str, Any]:
         data = json.loads(text)
     except Exception:  # noqa: BLE001
         if text.lstrip().startswith("<"):
+            if resp.status in (401, 403):
+                raise CodexRatesAuthError(
+                    "Codex-LB authentication required"
+                ) from None
             raise CodexRatesApiError(
                 "Codex-LB returned HTML instead of JSON"
             ) from None
