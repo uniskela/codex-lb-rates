@@ -68,6 +68,13 @@ from .providers.codex_lb import CodexLbProvider
 _LOGGER = logging.getLogger(__name__)
 
 
+def _cf_access_pair_incomplete(client_id: str | None, client_secret: str | None) -> bool:
+    """True when exactly one of the Cloudflare Access credentials is set."""
+    has_id = bool((client_id or "").strip())
+    has_secret = bool((client_secret or "").strip())
+    return has_id != has_secret
+
+
 class CodexRatesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Codex Rates."""
 
@@ -117,54 +124,59 @@ class CodexRatesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if parsed.scheme not in ("http", "https") or not parsed.netloc:
                 errors["base"] = "invalid_url"
             else:
-                session = async_get_clientsession(self.hass)
-                provider = CodexLbProvider(
-                    session,
-                    base_url=base_url,
-                    password=user_input.get(CONF_PASSWORD),
-                    totp_secret=user_input.get(CONF_TOTP_SECRET),
-                    verify_ssl=user_input.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
-                    login_mode=user_input.get(CONF_LB_LOGIN, DEFAULT_LB_LOGIN),
-                    cf_access_client_id=user_input.get(CONF_CF_ACCESS_CLIENT_ID),
-                    cf_access_client_secret=user_input.get(CONF_CF_ACCESS_CLIENT_SECRET),
-                )
-                try:
-                    await provider.async_validate()
-                except CodexRatesAuthError:
+                cf_id = (user_input.get(CONF_CF_ACCESS_CLIENT_ID) or "").strip()
+                cf_secret = (user_input.get(CONF_CF_ACCESS_CLIENT_SECRET) or "").strip()
+                if _cf_access_pair_incomplete(cf_id, cf_secret):
                     errors["base"] = "invalid_auth"
-                except (CodexRatesApiError, aiohttp.ClientError, TimeoutError):
-                    errors["base"] = "cannot_connect"
-                except Exception:  # noqa: BLE001
-                    _LOGGER.exception("Unexpected Codex-LB validation error")
-                    errors["base"] = "unknown"
                 else:
-                    await self.async_set_unique_id(f"codex_lb:{parsed.netloc}")
-                    self._abort_if_unique_id_configured()
-                    title = user_input.get(CONF_NAME) or f"Codex-LB ({parsed.netloc})"
-                    data = {
-                        CONF_MODE: MODE_CODEX_LB,
-                        CONF_BASE_URL: base_url,
-                        CONF_LB_LOGIN: user_input.get(CONF_LB_LOGIN, DEFAULT_LB_LOGIN),
-                        CONF_PASSWORD: user_input.get(CONF_PASSWORD) or "",
-                        CONF_TOTP_SECRET: user_input.get(CONF_TOTP_SECRET) or "",
-                        CONF_VERIFY_SSL: user_input.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
-                        CONF_CF_ACCESS_CLIENT_ID: (
-                            user_input.get(CONF_CF_ACCESS_CLIENT_ID) or ""
-                        ).strip(),
-                        CONF_CF_ACCESS_CLIENT_SECRET: (
-                            user_input.get(CONF_CF_ACCESS_CLIENT_SECRET) or ""
-                        ).strip(),
-                    }
-                    return self.async_create_entry(
-                        title=title,
-                        data=data,
-                        options={
-                            CONF_POLL_INTERVAL: DEFAULT_POLL_INTERVAL,
-                            CONF_RICH_SENSORS: DEFAULT_RICH_SENSORS,
-                            CONF_USED_PERCENT_SENSORS: DEFAULT_USED_PERCENT_SENSORS,
-                            CONF_RESET_DISPLAY: DEFAULT_RESET_DISPLAY,
-                        },
+                    session = async_get_clientsession(self.hass)
+                    provider = CodexLbProvider(
+                        session,
+                        base_url=base_url,
+                        password=user_input.get(CONF_PASSWORD),
+                        totp_secret=user_input.get(CONF_TOTP_SECRET),
+                        verify_ssl=user_input.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
+                        login_mode=user_input.get(CONF_LB_LOGIN, DEFAULT_LB_LOGIN),
+                        cf_access_client_id=cf_id,
+                        cf_access_client_secret=cf_secret,
                     )
+                    try:
+                        await provider.async_validate()
+                    except CodexRatesAuthError:
+                        errors["base"] = "invalid_auth"
+                    except (CodexRatesApiError, aiohttp.ClientError, TimeoutError):
+                        errors["base"] = "cannot_connect"
+                    except Exception:  # noqa: BLE001
+                        _LOGGER.exception("Unexpected Codex-LB validation error")
+                        errors["base"] = "unknown"
+                    else:
+                        await self.async_set_unique_id(f"codex_lb:{parsed.netloc}")
+                        self._abort_if_unique_id_configured()
+                        title = user_input.get(CONF_NAME) or f"Codex-LB ({parsed.netloc})"
+                        data = {
+                            CONF_MODE: MODE_CODEX_LB,
+                            CONF_BASE_URL: base_url,
+                            CONF_LB_LOGIN: user_input.get(
+                                CONF_LB_LOGIN, DEFAULT_LB_LOGIN
+                            ),
+                            CONF_PASSWORD: user_input.get(CONF_PASSWORD) or "",
+                            CONF_TOTP_SECRET: user_input.get(CONF_TOTP_SECRET) or "",
+                            CONF_VERIFY_SSL: user_input.get(
+                                CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL
+                            ),
+                            CONF_CF_ACCESS_CLIENT_ID: cf_id,
+                            CONF_CF_ACCESS_CLIENT_SECRET: cf_secret,
+                        }
+                        return self.async_create_entry(
+                            title=title,
+                            data=data,
+                            options={
+                                CONF_POLL_INTERVAL: DEFAULT_POLL_INTERVAL,
+                                CONF_RICH_SENSORS: DEFAULT_RICH_SENSORS,
+                                CONF_USED_PERCENT_SENSORS: DEFAULT_USED_PERCENT_SENSORS,
+                                CONF_RESET_DISPLAY: DEFAULT_RESET_DISPLAY,
+                            },
+                        )
 
         return self.async_show_form(
             step_id="codex_lb",
@@ -484,30 +496,37 @@ class CodexRatesOptionsFlow(config_entries.OptionsFlow):
                 elif not new_id:
                     data[CONF_CF_ACCESS_CLIENT_SECRET] = ""
                 # Blank secret with existing client id keeps the stored secret.
-
-                session = async_get_clientsession(self.hass)
-                provider = CodexLbProvider(
-                    session,
-                    base_url=data[CONF_BASE_URL],
-                    password=data.get(CONF_PASSWORD),
-                    totp_secret=data.get(CONF_TOTP_SECRET),
-                    verify_ssl=data.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
-                    login_mode=data.get(CONF_LB_LOGIN, DEFAULT_LB_LOGIN),
-                    cf_access_client_id=data.get(CONF_CF_ACCESS_CLIENT_ID),
-                    cf_access_client_secret=data.get(CONF_CF_ACCESS_CLIENT_SECRET),
-                )
-                try:
-                    await provider.async_validate()
-                except CodexRatesAuthError:
+                if _cf_access_pair_incomplete(
+                    data.get(CONF_CF_ACCESS_CLIENT_ID),
+                    data.get(CONF_CF_ACCESS_CLIENT_SECRET),
+                ):
                     errors["base"] = "invalid_auth"
-                except (CodexRatesApiError, aiohttp.ClientError, TimeoutError):
-                    errors["base"] = "cannot_connect"
-                except Exception:  # noqa: BLE001
-                    _LOGGER.exception("Unexpected Codex-LB options validation error")
-                    errors["base"] = "unknown"
                 else:
-                    self.hass.config_entries.async_update_entry(entry, data=data)
-                    return self.async_create_entry(title="", data=options)
+                    session = async_get_clientsession(self.hass)
+                    provider = CodexLbProvider(
+                        session,
+                        base_url=data[CONF_BASE_URL],
+                        password=data.get(CONF_PASSWORD),
+                        totp_secret=data.get(CONF_TOTP_SECRET),
+                        verify_ssl=data.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
+                        login_mode=data.get(CONF_LB_LOGIN, DEFAULT_LB_LOGIN),
+                        cf_access_client_id=data.get(CONF_CF_ACCESS_CLIENT_ID),
+                        cf_access_client_secret=data.get(CONF_CF_ACCESS_CLIENT_SECRET),
+                    )
+                    try:
+                        await provider.async_validate()
+                    except CodexRatesAuthError:
+                        errors["base"] = "invalid_auth"
+                    except (CodexRatesApiError, aiohttp.ClientError, TimeoutError):
+                        errors["base"] = "cannot_connect"
+                    except Exception:  # noqa: BLE001
+                        _LOGGER.exception(
+                            "Unexpected Codex-LB options validation error"
+                        )
+                        errors["base"] = "unknown"
+                    else:
+                        self.hass.config_entries.async_update_entry(entry, data=data)
+                        return self.async_create_entry(title="", data=options)
             else:
                 return self.async_create_entry(title="", data=options)
 

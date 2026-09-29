@@ -89,6 +89,7 @@ class CodexLbProvider:
         async with self._session.get(
             url,
             headers=headers,
+            allow_redirects=False,
             ssl=self._verify_ssl,
             timeout=aiohttp.ClientTimeout(total=30),
         ) as resp:
@@ -142,6 +143,7 @@ class CodexLbProvider:
         async with self._session.get(
             session_url,
             headers=self._request_headers(include_cookie=False),
+            allow_redirects=False,
             ssl=self._verify_ssl,
             timeout=aiohttp.ClientTimeout(total=15),
         ) as resp:
@@ -181,6 +183,7 @@ class CodexLbProvider:
             login_url,
             json=payload,
             headers=self._request_headers(),
+            allow_redirects=False,
             ssl=self._verify_ssl,
             timeout=aiohttp.ClientTimeout(total=15),
         ) as resp:
@@ -228,6 +231,7 @@ class CodexLbProvider:
                 login_url,
                 json={"password": self._password},
                 headers=self._request_headers(),
+                allow_redirects=False,
                 ssl=self._verify_ssl,
                 timeout=aiohttp.ClientTimeout(total=15),
             ) as resp:
@@ -259,6 +263,7 @@ class CodexLbProvider:
                 totp_url,
                 json={"code": code, "totp_code": code},
                 headers=self._request_headers(),
+                allow_redirects=False,
                 ssl=self._verify_ssl,
                 timeout=aiohttp.ClientTimeout(total=15),
             ) as resp:
@@ -666,13 +671,6 @@ def _looks_like_cloudflare_access(
         return True
     if "<html" in text_l and "cloudflare" in text_l and "access" in text_l:
         return True
-    # Access often serves a 200 HTML login page instead of JSON.
-    if (
-        "text/html" in content_type.lower()
-        and text.lstrip().startswith("<")
-        and status in (200, 301, 302, 303, 307, 401, 403)
-    ):
-        return True
     return False
 
 
@@ -695,6 +693,8 @@ async def _parse_lb_json(resp: aiohttp.ClientResponse) -> dict[str, Any]:
         data = json.loads(text)
     except Exception:  # noqa: BLE001
         if text.lstrip().startswith("<"):
-            raise CodexRatesAuthError(_CF_ACCESS_ERROR) from None
+            raise CodexRatesApiError(
+                "Codex-LB returned HTML instead of JSON"
+            ) from None
         return {}
     return data if isinstance(data, dict) else {}

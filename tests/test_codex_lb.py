@@ -6,7 +6,7 @@ import aiohttp
 import pytest
 from aiohttp import web
 
-from custom_components.codex_rates.exceptions import CodexRatesAuthError
+from custom_components.codex_rates.exceptions import CodexRatesApiError, CodexRatesAuthError
 from custom_components.codex_rates.providers.codex_lb import CodexLbProvider
 
 
@@ -579,4 +579,25 @@ async def test_codex_lb_detects_cloudflare_access_html(aiohttp_client) -> None:
             session, base_url=str(client.make_url("/")).rstrip("/")
         )
         with pytest.raises(CodexRatesAuthError, match="Cloudflare Access"):
+            await provider.async_validate()
+
+
+@pytest.mark.asyncio
+async def test_codex_lb_generic_html_is_api_error(aiohttp_client) -> None:
+    async def session_state(request: web.Request) -> web.Response:
+        return web.Response(
+            text="<!DOCTYPE html><html><body>proxy error</body></html>",
+            content_type="text/html",
+            status=502,
+        )
+
+    app = web.Application()
+    app.router.add_get("/api/dashboard-auth/session", session_state)
+    client = await aiohttp_client(app)
+
+    async with aiohttp.ClientSession() as session:
+        provider = CodexLbProvider(
+            session, base_url=str(client.make_url("/")).rstrip("/")
+        )
+        with pytest.raises(CodexRatesApiError, match="HTML instead of JSON"):
             await provider.async_validate()
