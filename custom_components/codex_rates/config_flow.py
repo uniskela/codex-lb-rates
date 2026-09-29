@@ -26,6 +26,8 @@ from .const import (
     CONF_AUTH_JSON_PATH,
     CONF_AUTH_METHOD,
     CONF_BASE_URL,
+    CONF_CF_ACCESS_CLIENT_ID,
+    CONF_CF_ACCESS_CLIENT_SECRET,
     CONF_EMAIL,
     CONF_ID_TOKEN,
     CONF_LB_LOGIN,
@@ -123,6 +125,8 @@ class CodexRatesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     totp_secret=user_input.get(CONF_TOTP_SECRET),
                     verify_ssl=user_input.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
                     login_mode=user_input.get(CONF_LB_LOGIN, DEFAULT_LB_LOGIN),
+                    cf_access_client_id=user_input.get(CONF_CF_ACCESS_CLIENT_ID),
+                    cf_access_client_secret=user_input.get(CONF_CF_ACCESS_CLIENT_SECRET),
                 )
                 try:
                     await provider.async_validate()
@@ -144,6 +148,12 @@ class CodexRatesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_PASSWORD: user_input.get(CONF_PASSWORD) or "",
                         CONF_TOTP_SECRET: user_input.get(CONF_TOTP_SECRET) or "",
                         CONF_VERIFY_SSL: user_input.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
+                        CONF_CF_ACCESS_CLIENT_ID: (
+                            user_input.get(CONF_CF_ACCESS_CLIENT_ID) or ""
+                        ).strip(),
+                        CONF_CF_ACCESS_CLIENT_SECRET: (
+                            user_input.get(CONF_CF_ACCESS_CLIENT_SECRET) or ""
+                        ).strip(),
                     }
                     return self.async_create_entry(
                         title=title,
@@ -174,6 +184,14 @@ class CodexRatesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         )
                     ),
                     vol.Optional(CONF_TOTP_SECRET, default=""): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.PASSWORD
+                        )
+                    ),
+                    vol.Optional(CONF_CF_ACCESS_CLIENT_ID, default=""): str,
+                    vol.Optional(
+                        CONF_CF_ACCESS_CLIENT_SECRET, default=""
+                    ): selector.TextSelector(
                         selector.TextSelectorConfig(
                             type=selector.TextSelectorType.PASSWORD
                         )
@@ -433,7 +451,7 @@ class CodexRatesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class CodexRatesOptionsFlow(config_entries.OptionsFlow):
-    """Options flow for poll interval, rich/used sensors, and reset display."""
+    """Options flow for sensors, reset display, and CF Access tokens."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow with config entry reference."""
@@ -441,34 +459,93 @@ class CodexRatesOptionsFlow(config_entries.OptionsFlow):
         self._config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
-
         entry = self._config_entry
+        is_codex_lb = entry.data.get(CONF_MODE) == MODE_CODEX_LB
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            options = {
+                CONF_POLL_INTERVAL: user_input[CONF_POLL_INTERVAL],
+                CONF_RICH_SENSORS: user_input[CONF_RICH_SENSORS],
+                CONF_USED_PERCENT_SENSORS: user_input[CONF_USED_PERCENT_SENSORS],
+                CONF_RESET_DISPLAY: user_input[CONF_RESET_DISPLAY],
+            }
+            if is_codex_lb:
+                new_id = (user_input.get(CONF_CF_ACCESS_CLIENT_ID) or "").strip()
+                new_secret = (
+                    user_input.get(CONF_CF_ACCESS_CLIENT_SECRET) or ""
+                ).strip()
+                data = {
+                    **entry.data,
+                    CONF_CF_ACCESS_CLIENT_ID: new_id,
+                }
+                if new_secret:
+                    data[CONF_CF_ACCESS_CLIENT_SECRET] = new_secret
+                elif not new_id:
+                    data[CONF_CF_ACCESS_CLIENT_SECRET] = ""
+                # Blank secret with existing client id keeps the stored secret.
+
+                session = async_get_clientsession(self.hass)
+                provider = CodexLbProvider(
+                    session,
+                    base_url=data[CONF_BASE_URL],
+                    password=data.get(CONF_PASSWORD),
+                    totp_secret=data.get(CONF_TOTP_SECRET),
+                    verify_ssl=data.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
+                    login_mode=data.get(CONF_LB_LOGIN, DEFAULT_LB_LOGIN),
+                    cf_access_client_id=data.get(CONF_CF_ACCESS_CLIENT_ID),
+                    cf_access_client_secret=data.get(CONF_CF_ACCESS_CLIENT_SECRET),
+                )
+                try:
+                    await provider.async_validate()
+                except CodexRatesAuthError:
+                    errors["base"] = "invalid_auth"
+                except (CodexRatesApiError, aiohttp.ClientError, TimeoutError):
+                    errors["base"] = "cannot_connect"
+                except Exception:  # noqa: BLE001
+                    _LOGGER.exception("Unexpected Codex-LB options validation error")
+                    errors["base"] = "unknown"
+                else:
+                    self.hass.config_entries.async_update_entry(entry, data=data)
+                    return self.async_create_entry(title="", data=options)
+            else:
+                return self.async_create_entry(title="", data=options)
+
+        schema: dict[Any, Any] = {
+            vol.Required(
+                CONF_POLL_INTERVAL,
+                default=entry.options.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
+            ): vol.All(vol.Coerce(int), vol.Range(min=MIN_POLL_INTERVAL, max=3600)),
+            vol.Required(
+                CONF_RICH_SENSORS,
+                default=entry.options.get(CONF_RICH_SENSORS, DEFAULT_RICH_SENSORS),
+            ): bool,
+            vol.Required(
+                CONF_USED_PERCENT_SENSORS,
+                default=entry.options.get(
+                    CONF_USED_PERCENT_SENSORS, DEFAULT_USED_PERCENT_SENSORS
+                ),
+            ): bool,
+            vol.Required(
+                CONF_RESET_DISPLAY,
+                default=entry.options.get(CONF_RESET_DISPLAY, DEFAULT_RESET_DISPLAY),
+            ): vol.In(RESET_DISPLAY_OPTIONS),
+        }
+        if is_codex_lb:
+            schema[
+                vol.Optional(
+                    CONF_CF_ACCESS_CLIENT_ID,
+                    default=entry.data.get(CONF_CF_ACCESS_CLIENT_ID, ""),
+                )
+            ] = str
+            schema[vol.Optional(CONF_CF_ACCESS_CLIENT_SECRET, default="")] = (
+                selector.TextSelector(
+                    selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+                )
+            )
+
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_POLL_INTERVAL,
-                        default=entry.options.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=MIN_POLL_INTERVAL, max=3600)),
-                    vol.Required(
-                        CONF_RICH_SENSORS,
-                        default=entry.options.get(CONF_RICH_SENSORS, DEFAULT_RICH_SENSORS),
-                    ): bool,
-                    vol.Required(
-                        CONF_USED_PERCENT_SENSORS,
-                        default=entry.options.get(
-                            CONF_USED_PERCENT_SENSORS, DEFAULT_USED_PERCENT_SENSORS
-                        ),
-                    ): bool,
-                    vol.Required(
-                        CONF_RESET_DISPLAY,
-                        default=entry.options.get(
-                            CONF_RESET_DISPLAY, DEFAULT_RESET_DISPLAY
-                        ),
-                    ): vol.In(RESET_DISPLAY_OPTIONS),
-                }
-            ),
+            data_schema=vol.Schema(schema),
+            errors=errors,
         )

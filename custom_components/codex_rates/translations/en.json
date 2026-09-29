@@ -10,13 +10,15 @@
       },
       "codex_lb": {
         "title": "Codex-LB",
-        "description": "Connect to your Codex-LB dashboard. Use Guest for read-only access when the server allows it. Leave password empty if auth is disabled or guest needs no password.",
+        "description": "Connect to your Codex-LB dashboard. Use Guest for read-only access when the server allows it. Leave password empty if auth is disabled or guest needs no password. If the host is behind Cloudflare Access, add a Zero Trust service token (Service Auth policy) below.",
         "data": {
           "name": "Name",
           "base_url": "Base URL",
           "lb_login": "Login mode",
           "password": "Password (admin or guest)",
           "totp_secret": "TOTP secret (admin only, optional)",
+          "cf_access_client_id": "Cloudflare Access Client ID (optional)",
+          "cf_access_client_secret": "Cloudflare Access Client Secret (optional)",
           "verify_ssl": "Verify SSL"
         }
       },
@@ -62,7 +64,7 @@
     },
     "error": {
       "cannot_connect": "Could not connect",
-      "invalid_auth": "Invalid authentication",
+      "invalid_auth": "Invalid authentication (dashboard password/TOTP or Cloudflare Access)",
       "invalid_url": "Invalid URL",
       "unknown": "Unexpected error",
       "oauth_timeout": "Still waiting for authorization \u2014 finish sign-in, then submit again",
@@ -78,17 +80,27 @@
     "step": {
       "init": {
         "title": "Codex-LB Rates options",
+        "description": "For Codex-LB behind Cloudflare Access, set the service token Client ID/Secret. Leave the secret blank to keep the stored value.",
         "data": {
           "poll_interval": "Poll interval (seconds)",
           "rich_sensors": "Enable rich sensors (plan, credits balance, last refresh, request usage)",
           "used_percent_sensors": "Enable used-% sensors (remaining % stays primary)",
-          "reset_display": "Reset sensor display"
+          "reset_display": "Reset sensor display",
+          "cf_access_client_id": "Cloudflare Access Client ID (optional)",
+          "cf_access_client_secret": "Cloudflare Access Client Secret (optional)"
         },
         "data_description": {
           "used_percent_sensors": "Optional used-percentage entities for the same quota windows. Remaining % stays the default dashboard and automation value.",
-          "reset_display": "countdown shows Xd XXh remaining; absolute shows a local date/time. resets_at always keeps the exact timestamp."
+          "reset_display": "countdown shows Xd XXh remaining; absolute shows a local date/time. resets_at always keeps the exact timestamp.",
+          "cf_access_client_id": "Zero Trust service token Client ID when Codex-LB is behind Cloudflare Access.",
+          "cf_access_client_secret": "Leave blank to keep the stored secret."
         }
       }
+    },
+    "error": {
+      "cannot_connect": "Could not connect",
+      "invalid_auth": "Invalid authentication (dashboard password/TOTP or Cloudflare Access)",
+      "unknown": "Unexpected error"
     }
   },
   "entity": {
