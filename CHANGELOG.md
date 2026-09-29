@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/uniskela/codex-lb-rates/compare/v0.8.1...v0.9.0) (2026-09-29)
+
+
+### Features
+
+* support Cloudflare Access service tokens for Codex-LB ([#50](https://github.com/uniskela/codex-lb-rates/issues/50)) ([1821a1b](https://github.com/uniskela/codex-lb-rates/commit/1821a1bdc6a2e005e521455aeec383dae3f0dfeb))
+
 ## [0.8.1](https://github.com/uniskela/codex-lb-rates/compare/v0.8.0...v0.8.1) (2026-09-24)
 
 
