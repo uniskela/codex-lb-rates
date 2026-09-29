@@ -15,6 +15,8 @@ Choose **Codex-LB** when Home Assistant should read quota data from a Codex-LB s
 | **Login mode** | **Admin** or **Guest** |
 | **Password** | Admin dashboard password, or guest password when your server requires one |
 | **TOTP secret** | Optional; admin mode only |
+| **Cloudflare Access Client ID** | Optional Zero Trust service token Client ID when the host is behind Cloudflare Access |
+| **Cloudflare Access Client Secret** | Optional matching Client Secret. On first setup, set both Access fields or leave both blank |
 | **Verify SSL** | Keep enabled for a normally trusted HTTPS certificate |
 
 The default URL shown by the integration is `http://127.0.0.1:2455`. That only works when Codex-LB is actually reachable from Home Assistant at that address.
@@ -29,6 +31,21 @@ Leave the password blank when the selected login mode does not require one.
 
 > [!IMPORTANT]
 > Codex-LB API keys are not a replacement for the dashboard/guest session here. The account quota endpoint used by the integration requires dashboard-session authentication.
+
+### Cloudflare Access (tunnel hosts)
+
+Home Assistant cannot complete a browser Cloudflare Access login. If Codex-LB is reached through an Access-protected hostname, use a [service token](https://developers.cloudflare.com/cloudflare-one/access-controls/service-credentials/service-tokens/) with a **Service Auth** policy:
+
+1. In Zero Trust, open **Access** → **Service credentials**, create a service token, and copy the Client ID and Client Secret.
+2. On the Access application for the Codex-LB hostname, add a **Service Auth** policy that includes that token. Keep the normal Allow policy for people using `/login`.
+3. Enter **Cloudflare Access Client ID** and **Client Secret** on this setup screen. You can change them later under **Configure**.
+4. Keep the dashboard **Admin** or **Guest** password as usual. Access and Codex-LB login are separate layers.
+
+Prefer a LAN base URL when Home Assistant and Codex-LB share a private network and you do not need the public tunnel.
+
+A Cloudflare Access bypass on `/v1` alone is not enough. This integration calls `/api/dashboard-auth/*` and `/api/accounts`.
+
+Under **Configure**, leave **Cloudflare Access Client Secret** blank to keep the stored secret. Clearing **Cloudflare Access Client ID** and leaving the secret blank removes both stored credentials.
 
 ### HTTPS and self-signed certificates
 
@@ -113,6 +130,8 @@ Available options:
 | **Enable rich sensors** | Off | Adds plan, credits balance, last-refresh, and request-count diagnostic sensors when data exists |
 | **Enable used-% sensors** | Off | Adds optional used-percentage entities; remaining % stays primary |
 | **Reset sensor display** | Countdown | `countdown` shows values such as `2d 04h`; `absolute` shows a local `YYYY-MM-DD HH:MM` value |
+| **Cloudflare Access Client ID** | Blank | Codex-LB only. Optional service token Client ID. Clearing it and leaving the secret blank removes both stored credentials |
+| **Cloudflare Access Client Secret** | Blank | Codex-LB only. Leave blank to keep the stored secret |
 
 Changing the reset display only changes the human-readable sensor state. Reset sensors keep the exact provider timestamp in the `resets_at` attribute.
 

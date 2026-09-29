@@ -39,6 +39,18 @@ Codex-LB API keys do not provide the dashboard-session access this integration n
 
 If TOTP is enabled, verify the configured secret and system clocks.
 
+## Codex-LB: Cloudflare Access HTML/challenge or Access authentication error
+
+This applies when the Codex-LB base URL is behind Cloudflare Access and the service token is missing or wrong.
+
+Typical signs:
+
+- setup reports **Invalid authentication (dashboard password/TOTP or Cloudflare Access)**;
+- a later poll fails with an authentication error that Cloudflare Access blocked the request;
+- the response is an Access HTML/challenge (login page) instead of dashboard JSON.
+
+Home Assistant cannot complete the browser Access login. A correct dashboard password does not replace the Access token. Add a Zero Trust service token and a **Service Auth** policy, then set **Cloudflare Access Client ID** and **Client Secret**. See [Configuration](configuration.md).
+
 ## ChatGPT: device-code login is still pending
 
 Finish authorization in the browser, return to Home Assistant, and submit again.
@@ -218,7 +230,7 @@ Diagnostics include useful support data such as:
 - exact reset timestamps and calculated time remaining;
 - pool counts/aggregates.
 
-Passwords, TOTP secrets, and OAuth tokens are redacted.
+Passwords, TOTP secrets, Cloudflare Access client secrets, and OAuth tokens are redacted.
 
 > [!CAUTION]
 > Diagnostics can still contain account IDs, email addresses, plan information, quota values, and reset timing. Review the file before posting it publicly.
@@ -235,6 +247,6 @@ Useful reports include:
 - whether a restart/reload changes the result;
 - redacted diagnostics when relevant.
 
-Do not post passwords, TOTP secrets, access tokens, refresh tokens, ID tokens, or unreviewed diagnostics.
+Do not post passwords, TOTP secrets, Cloudflare Access client secrets, access tokens, refresh tokens, ID tokens, or unreviewed diagnostics.
 
 Use the repository's [issue tracker](https://github.com/uniskela/codex-lb-rates/issues) for bugs. Security-sensitive reports should follow [SECURITY.md](../SECURITY.md).
