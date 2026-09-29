@@ -16,7 +16,7 @@ Choose **Codex-LB** when Home Assistant should read quota data from a Codex-LB s
 | **Password** | Admin dashboard password, or guest password when your server requires one |
 | **TOTP secret** | Optional; admin mode only |
 | **Cloudflare Access Client ID** | Optional Zero Trust service token Client ID when the Base URL is behind Cloudflare Access |
-| **Cloudflare Access Client Secret** | Matching service token Client Secret (both ID and Secret required together) |
+| **Cloudflare Access Client Secret** | Matching Client Secret — set both Access fields together, or leave both blank |
 | **Verify SSL** | Keep enabled for a normally trusted HTTPS certificate |
 
 The default URL shown by the integration is `http://127.0.0.1:2455`. That only works when Codex-LB is actually reachable from Home Assistant at that address.
@@ -34,14 +34,16 @@ Leave the password blank when the selected login mode does not require one.
 
 ### Cloudflare Access (tunnel hosts)
 
-Home Assistant cannot complete the browser Access login. When the Base URL is an Access-protected tunnel hostname, use a [service token](https://developers.cloudflare.com/cloudflare-one/access-controls/service-credentials/service-tokens/):
+Home Assistant cannot complete the browser Access login. When the Base URL is an Access-protected tunnel hostname, use a [service token](https://developers.cloudflare.com/cloudflare-one/access-controls/service-credentials/service-tokens/) with a **Service Auth** policy:
 
 1. Zero Trust → **Access** → **Service credentials** → create a service token; copy Client ID and Client Secret.
-2. On the Access application for your Codex-LB hostname, add a **Service Auth** policy that includes that token (keep your normal Allow policy for humans).
+2. On the Access application for your Codex-LB hostname, add a **Service Auth** policy that includes that token (keep your normal Allow policy for humans on `/login`).
 3. In this integration, set **Cloudflare Access Client ID** and **Client Secret** (also editable later under **Configure**).
 4. Keep dashboard admin/guest password (± TOTP) as usual — Access and Codex-LB login are separate layers.
 
 A bypass that only covers `/v1` is not enough — this integration uses `/api/dashboard-auth/*` and `/api/accounts`. Prefer a LAN or Tailscale URL when Home Assistant and Codex-LB share a private network.
+
+Under **Configure**, leave **Cloudflare Access Client Secret** blank to keep the stored secret. Clearing **Cloudflare Access Client ID** and leaving the secret blank removes both stored credentials.
 
 Setup failures use specific error codes (wrong password, missing/invalid TOTP, Cloudflare Access challenge, incomplete Access credentials, and similar). See [Troubleshooting](troubleshooting.md).
 
@@ -128,8 +130,8 @@ Available options:
 | **Enable rich sensors** | Off | Adds plan, credits balance, last-refresh, and request-count diagnostic sensors when data exists |
 | **Enable used-% sensors** | Off | Adds optional used-percentage entities; remaining % stays primary |
 | **Reset sensor display** | Countdown | `countdown` shows values such as `2d 04h`; `absolute` shows a local `YYYY-MM-DD HH:MM` value |
-| **Cloudflare Access Client ID / Secret** | Empty | Codex-LB only; optional Zero Trust service token. Leave the secret blank to keep the stored value |
-
+| **Cloudflare Access Client ID** | Blank | Codex-LB only. Optional service token Client ID. Clearing it and leaving the secret blank removes both stored credentials |
+| **Cloudflare Access Client Secret** | Blank | Codex-LB only. Leave blank to keep the stored secret |
 Changing the reset display only changes the human-readable sensor state. Reset sensors keep the exact provider timestamp in the `resets_at` attribute.
 
 ## What happens after configuration

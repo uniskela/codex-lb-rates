@@ -53,7 +53,7 @@ Quota window names are based on the duration reported by the provider when that 
 | Guide | Use it for |
 |---|---|
 | [Installation](installation.md) | HACS, manual installation, first setup |
-| [Configuration](configuration.md) | Codex-LB login modes, ChatGPT authentication, integration options |
+| [Configuration](configuration.md) | Codex-LB login, Cloudflare Access service tokens, ChatGPT authentication, integration options |
 | [Entities and data](entities.md) | Sensors, attributes, pool weighting, dynamic window names |
 | [Dashboard examples](dashboard.md) | Practical Lovelace cards, including the bundled remaining-% card |
 | [Quota alert automations](automations.md) | Low/exceeded/refreshed notifications without alert spam |
@@ -63,6 +63,6 @@ Quota window names are based on the duration reported by the provider when that 
 
 ## Security and privacy
 
-Credentials are stored in the Home Assistant config entry rather than `configuration.yaml`, and integration diagnostics redact passwords and OAuth tokens. Diagnostics can still contain account identifiers, email addresses, quota values, and timing information, so review a diagnostics file before sharing it publicly.
+Credentials are stored in the Home Assistant config entry rather than `configuration.yaml`, and integration diagnostics redact passwords, Cloudflare Access client secrets, and OAuth tokens. Diagnostics can still contain account identifiers, email addresses, quota values, and timing information, so review a diagnostics file before sharing it publicly.
 
 See [SECURITY.md](../SECURITY.md) for vulnerability reporting.

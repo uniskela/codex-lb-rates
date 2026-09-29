@@ -55,6 +55,17 @@ Runtime reauth failures appear as `[code] message` on the config entry.
 
 If TOTP is enabled, verify the configured secret and system clocks. For Access issues, confirm the Service Auth policy applies to the dashboard and `/api` paths (not only `/v1`).
 
+## Codex-LB: Cloudflare Access HTML/challenge or Access authentication error
+
+This applies when the Codex-LB base URL is behind Cloudflare Access and the service token is missing, incomplete, or wrong.
+
+Typical signs:
+
+- setup or options show `cloudflare_access` or `cf_access_incomplete` (or the older generic **Invalid authentication (dashboard password/TOTP or Cloudflare Access)** fallback);
+- a later poll fails with `[cloudflare_access] …` on the config entry;
+- the response is an Access HTML/challenge (login page) instead of dashboard JSON.
+
+Home Assistant cannot complete the browser Access login. A correct dashboard password does not replace the Access token. Add a Zero Trust service token and a **Service Auth** policy covering `/api/dashboard-auth/*` and `/api/accounts` (not only `/v1`), then set **both** **Cloudflare Access Client ID** and **Client Secret**. See [Configuration — Cloudflare Access](configuration.md#cloudflare-access-tunnel-hosts).
 ## ChatGPT: device-code login is still pending
 
 Finish authorization in the browser, return to Home Assistant, and submit again.
