@@ -83,7 +83,7 @@ Treat the version declared in the blueprint description/name as the canonical bl
 1. Decide the blueprint SemVer bump: patch for compatible fixes, minor for backward-compatible capabilities, major for breaking/incompatible behaviour or inputs.
 2. Update the version in both the blueprint name and `Blueprint version:` description text.
 3. Update the current-version/setup wording in `README.md`.
-4. Update `docs/automations.md`, including its blueprint version history and any migration/update instructions.
+4. Update `docs/public/automations.md`, including its blueprint version history and any migration/update instructions.
 5. Update or add assertions in `tests/test_quota_blueprint.py`. Its version-consistency check must remain green so README/release docs cannot silently drift from the blueprint.
 6. Run the full Validate workflow (`pytest`, Hassfest, HACS validation) before treating the PR as ready.
 
@@ -97,6 +97,16 @@ Documentation-only changes that do not alter blueprint behaviour do not need a b
 - `main` requires a pull request, an approving review, and **code-owner review**.
 - Admins can still merge their own PRs (admin enforcement is off so the solo maintainer is not locked out).
 - Agents must **not** merge PRs to `main` unless the user explicitly asks and the GitHub actor is allowed; prefer opening PRs for @uniskela to review.
+
+## Documentation
+
+Published Home Assistant guides live in `docs/public/` and are selected by `docs/manifest.json`. Keep the existing slugs (`installation`, `configuration`, `entities`, `dashboard`, `automations`, `upgrading`, `troubleshooting`, `releases`, and `index`). The `public` directory is not part of the published URL.
+
+- User guides, including release history: `docs/public/`
+- Historical design and plans: `docs/internal/`
+- Agent instructions: this file. `docs/agents/README.md` only points here.
+
+Do not add `docs/internal/` or `docs/agents/` pages to the manifest.
 <!-- adhd-hub:project-agent:start -->
 <!-- adhd-hub:guidance-version:6 -->
 ## ADHD Hub continuity

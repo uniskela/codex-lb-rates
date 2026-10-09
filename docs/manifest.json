@@ -7,63 +7,63 @@
       "kind": "readme"
     },
     {
-      "source": "docs/index.md",
+      "source": "docs/public/index.md",
       "slug": "index",
       "title": "Overview",
       "group": "Start here",
       "kind": "doc"
     },
     {
-      "source": "docs/installation.md",
+      "source": "docs/public/installation.md",
       "slug": "installation",
       "title": "Installation",
       "group": "Start here",
       "kind": "doc"
     },
     {
-      "source": "docs/configuration.md",
+      "source": "docs/public/configuration.md",
       "slug": "configuration",
       "title": "Configuration",
       "group": "Start here",
       "kind": "doc"
     },
     {
-      "source": "docs/entities.md",
+      "source": "docs/public/entities.md",
       "slug": "entities",
       "title": "Entities and data",
       "group": "Using Codex-LB Rates",
       "kind": "doc"
     },
     {
-      "source": "docs/dashboard.md",
+      "source": "docs/public/dashboard.md",
       "slug": "dashboard",
       "title": "Dashboard examples",
       "group": "Using Codex-LB Rates",
       "kind": "doc"
     },
     {
-      "source": "docs/automations.md",
+      "source": "docs/public/automations.md",
       "slug": "automations",
       "title": "Quota alert automations",
       "group": "Using Codex-LB Rates",
       "kind": "doc"
     },
     {
-      "source": "docs/upgrading.md",
+      "source": "docs/public/upgrading.md",
       "slug": "upgrading",
       "title": "Upgrading",
       "group": "Operate & troubleshoot",
       "kind": "doc"
     },
     {
-      "source": "docs/troubleshooting.md",
+      "source": "docs/public/troubleshooting.md",
       "slug": "troubleshooting",
       "title": "Troubleshooting",
       "group": "Operate & troubleshoot",
       "kind": "doc"
     },
     {
-      "source": "docs/releases.md",
+      "source": "docs/public/releases.md",
       "slug": "releases",
       "title": "Releases",
       "group": "Project",

@@ -264,4 +264,4 @@ Useful reports include:
 
 Do not post passwords, TOTP secrets, Cloudflare Access client secrets, access tokens, refresh tokens, ID tokens, or unreviewed diagnostics.
 
-Use the repository's [issue tracker](https://github.com/uniskela/codex-lb-rates/issues) for bugs. Security-sensitive reports should follow [SECURITY.md](../SECURITY.md).
+Use the repository's [issue tracker](https://github.com/uniskela/codex-lb-rates/issues) for bugs. Security-sensitive reports should follow [SECURITY.md](../../SECURITY.md).

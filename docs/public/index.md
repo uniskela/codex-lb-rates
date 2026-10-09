@@ -65,4 +65,4 @@ Quota window names are based on the duration reported by the provider when that 
 
 Credentials are stored in the Home Assistant config entry rather than `configuration.yaml`, and integration diagnostics redact passwords, Cloudflare Access client secrets, and OAuth tokens. Diagnostics can still contain account identifiers, email addresses, quota values, and timing information, so review a diagnostics file before sharing it publicly.
 
-See [SECURITY.md](../SECURITY.md) for vulnerability reporting.
+See [SECURITY.md](../../SECURITY.md) for vulnerability reporting.

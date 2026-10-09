@@ -108,7 +108,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-Releases use [Release Please](https://github.com/googleapis/release-please) and Conventional Commits. Maintainer workflow details live in [AGENTS.md](AGENTS.md) and [docs/releases.md](https://uniskela.com/docs/codex-lb-rates/releases/).
+Releases use [Release Please](https://github.com/googleapis/release-please) and Conventional Commits. Maintainer workflow details live in [AGENTS.md](AGENTS.md) and the [releases guide](https://uniskela.com/docs/codex-lb-rates/releases/).
 
 ## License
 
