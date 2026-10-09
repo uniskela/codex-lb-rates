@@ -7,11 +7,11 @@ BLUEPRINT = (ROOT / "blueprints/automation/codex_rates/quota_warning.yaml").read
     encoding="utf-8"
 )
 README = (ROOT / "README.md").read_text(encoding="utf-8")
-DOCS = (ROOT / "docs/automations.md").read_text(encoding="utf-8")
-RELEASES = (ROOT / "docs/releases.md").read_text(encoding="utf-8")
+DOCS = (ROOT / "docs/public/automations.md").read_text(encoding="utf-8")
+RELEASES = (ROOT / "docs/public/releases.md").read_text(encoding="utf-8")
 AGENTS = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
 HISTORICAL_DESIGN = (
-    ROOT / "docs/superpowers/specs/2026-09-10-codex-rates-ha-design.md"
+    ROOT / "docs/internal/superpowers/specs/2026-09-10-codex-rates-ha-design.md"
 ).read_text(encoding="utf-8")
 
 
@@ -37,7 +37,7 @@ def test_maintainer_docs_define_independent_blueprint_versioning():
     assert "## Blueprint versioning" in AGENTS
     assert "independent" in AGENTS.lower()
     assert "README.md" in AGENTS
-    assert "docs/automations.md" in AGENTS
+    assert "docs/public/automations.md" in AGENTS
     assert "tests/test_quota_blueprint.py" in AGENTS
     assert "Integration version" in RELEASES
     assert "Blueprint version" in RELEASES

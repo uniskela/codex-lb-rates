@@ -3,7 +3,7 @@
 **Date:** 2026-09-10  
 **Status:** Approved historical design snapshot
 
-> **Historical design snapshot.** This document records the design that was approved on 2026-09-10 and is not maintained as live implementation documentation. Behaviour has changed since then. Use the current [README](../../../README.md), user docs such as [docs/automations.md](../../automations.md), and the implementation/tests as the source of truth for shipped behaviour.
+> **Historical design snapshot.** This document records the design that was approved on 2026-09-10 and is not maintained as live implementation documentation. Behaviour has changed since then. Use the current [README](../../../../README.md), user docs such as [docs/public/automations.md](../../../public/automations.md), and the implementation/tests as the source of truth for shipped behaviour.
 
 ## Goal
 
