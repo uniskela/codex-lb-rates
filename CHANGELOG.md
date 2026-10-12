@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.11.0](https://github.com/uniskela/codex-lb-rates/compare/v0.10.0...v0.11.0) (2026-10-12)
+
+
+### Features
+
+* edit card row labels and list installed themes ([#63](https://github.com/uniskela/codex-lb-rates/issues/63)) ([f0517e1](https://github.com/uniskela/codex-lb-rates/commit/f0517e14e04ef6c7dcac03ac4304220dd422d334))
+* search card sensors and ignore used-percent quota alerts ([7583dcc](https://github.com/uniskela/codex-lb-rates/commit/7583dcccb7807d2141aec5686f0c5e8851357960))
+
+
+### Bug Fixes
+
+* mark used-percent sensors even when remaining is missing ([d4fac39](https://github.com/uniskela/codex-lb-rates/commit/d4fac3945cbc811d46f3c3dc91497ffa408733ee))
+
 ## [0.10.0](https://github.com/uniskela/codex-lb-rates/compare/v0.9.1...v0.10.0) (2026-10-12)
 
 
