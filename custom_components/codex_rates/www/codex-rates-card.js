@@ -16,7 +16,7 @@
   const CARD_TYPE = "codex-rates-card";
   const EDITOR_TYPE = "codex-rates-card-editor";
   // Bump when editor/card surface changes so console + digest cache-bust clearly.
-  const CARD_VERSION = "1.2.4";
+  const CARD_VERSION = "1.2.0";
 
   /** @param {number} value */
   function clampPercent(value) {
