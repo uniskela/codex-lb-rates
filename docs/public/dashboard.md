@@ -29,9 +29,9 @@ On a recent Home Assistant frontend (≈2023.5+), the card supports the **Visual
 | Title | `title` | Optional card heading |
 | Theme | `theme` | Installed Home Assistant theme; leave empty to inherit the view/dashboard theme |
 | Reset display | `reset_display` | `countdown` (default), `absolute`, or `hidden`; applies to every row |
-| Primary remaining entity | `entity` | Hero remaining-% sensor |
-| Primary name override | `name` | Optional label for the primary entity only |
-| Additional remaining entities | `entities` | Multi-select of extra remaining-% sensors (string entity IDs) |
+| Primary entity | `entity` | Hero remaining-% sensor |
+| Label | `name` | Replaces the primary entity name on the card. Blank keeps the entity name |
+| Additional entity | `entities` | Extra remaining-% rows. Each row can set its own label |
 | Green / yellow thresholds | `green` / `yellow` | Colour bands; defaults `50` / `20` |
 
 Form-safe example (string entity IDs only — round-trips through the visual editor):
@@ -48,9 +48,11 @@ green: 50
 yellow: 20
 ```
 
-### YAML-only advanced
+### Labels
 
-Object-form `entities` rows (`{ entity, name? }`, with or without a custom `name`) remain fully supported at runtime. When any `entities` item is an object, the visual editor stays disabled so a GUI save cannot rewrite that list — edit those cards in the **Code editor** (YAML) instead.
+The visual editor lists installed sensor entities for the primary row and each additional row. **Label** replaces the entity name on the card (the “Codex-LB pool All accounts …” text). Leave a label blank to keep the entity’s name. A label on an additional row is saved as `{ entity, name }`; a blank label stays a plain entity ID.
+
+Object-form rows still load in the visual editor. The built-in form fallback, used only when the card editor element is unavailable, still refuses object rows so it cannot flatten them.
 
 ```yaml
 type: custom:codex-rates-card
@@ -69,7 +71,7 @@ Behaviour:
 - Optional `green` / `yellow` thresholds default to `50` / `20` (same “plenty / getting low / little left” bands as the gauge examples below).
 - The primary pool shows measured-account counts and weighting, plus incomplete reset coverage when applicable.
 - Tap/click the large quota or an extra row to open that entity's **More info** dialog. Keyboard users can Tab to a quota and press Enter or Space.
-- Top-level `name` (primary only) is available in both the visual form and YAML; per-row names under `entities` are YAML-only.
+- Top-level `name` and per-row `entities` labels are editable in the visual editor and in YAML.
 
 ### BREAKING CHANGE: pool card display
 
@@ -93,7 +95,7 @@ The card reads `resets_at` directly from account remaining sensors and `next_res
 
 ### Themes and frosted glass styling
 
-The **Theme** picker lists themes installed in Home Assistant, like the picker on standard cards. A blank theme inherits the surrounding view/dashboard theme. An explicit theme applies its variables, including its active light/dark mode, only to this card:
+The **Theme** dropdown lists themes installed in Home Assistant. Leave it empty to inherit the surrounding view/dashboard theme. An explicit theme applies its variables, including its active light/dark mode, only to this card:
 
 ```yaml
 type: custom:codex-rates-card

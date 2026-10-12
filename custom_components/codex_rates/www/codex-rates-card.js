@@ -16,7 +16,7 @@
   const CARD_TYPE = "codex-rates-card";
   const EDITOR_TYPE = "codex-rates-card-editor";
   // Bump when editor/card surface changes so console + digest cache-bust clearly.
-  const CARD_VERSION = "1.2.0";
+  const CARD_VERSION = "1.2.2";
 
   /** @param {number} value */
   function clampPercent(value) {
@@ -229,6 +229,85 @@
     };
   }
 
+  /** @param {any} hass */
+  function installedThemes(hass) {
+    return Object.keys(hass?.themes?.themes || {}).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" })
+    );
+  }
+
+  // ha-theme-picker snapshots uiContext once and stays empty in this editor.
+  // List hass.themes instead — that is the catalog the card applies.
+  /** @param {any} hass */
+  function editorSchema(hass) {
+    const names = installedThemes(hass);
+    return {
+      key: names.join("\0"),
+      schema: CONFIG_FORM_SCHEMA.filter((field) => !["entity", "name", "entities"].includes(field.name)).map((field) =>
+        field.name !== "theme"
+          ? field
+          : {
+              name: "theme",
+              selector: {
+                select: {
+                  mode: "dropdown",
+                  options: names.map((name) => ({ value: name, label: name })),
+                },
+              },
+            }
+      ),
+    };
+  }
+
+  /** @param {any} hass @param {string[]} extra */
+  function sensorChoices(hass, extra) {
+    const ids = new Set(Object.keys(hass?.states || {}).filter((id) => id.startsWith("sensor.")));
+    for (const id of extra) if (id) ids.add(id);
+    return [...ids].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })).map((id) => ({
+      value: id,
+      label: hass?.states?.[id]?.attributes?.friendly_name || id,
+    }));
+  }
+
+  /** @param {Record<string, unknown> | null | undefined} config */
+  function rowsFromConfig(config) {
+    /** @type {{ entity: string, name: string }[]} */
+    const rows = [];
+    if (config?.entity) rows.push({ entity: String(config.entity), name: config.name ? String(config.name) : "" });
+    for (const item of /** @type {unknown[]} */ (config?.entities || [])) {
+      if (typeof item === "string") rows.push({ entity: item, name: "" });
+      else if (item && typeof item === "object" && "entity" in item && item.entity) {
+        rows.push({ entity: String(item.entity), name: "name" in item && item.name ? String(item.name) : "" });
+      }
+    }
+    if (!rows.length) rows.push({ entity: "", name: "" });
+    return rows;
+  }
+
+  /**
+   * @param {Record<string, unknown>} config
+   * @param {{ entity: string, name: string }[]} rows
+   */
+  function applyRows(config, rows) {
+    const filled = rows.filter((row) => row.entity);
+    const [primary, ...rest] = filled;
+    const next = { ...config };
+    if (primary) {
+      next.entity = primary.entity;
+      if (primary.name.trim()) next.name = primary.name.trim();
+      else delete next.name;
+    } else {
+      delete next.entity;
+      delete next.name;
+    }
+    if (rest.length) {
+      next.entities = rest.map((row) => (row.name.trim() ? { entity: row.entity, name: row.name.trim() } : row.entity));
+    } else {
+      delete next.entities;
+    }
+    return next;
+  }
+
   /**
    * Compact visual editor — HA prefers getConfigElement over getConfigForm.
    * Uses frontend ha-form (always present in the card editor dialog).
@@ -242,16 +321,29 @@
       this._hass = undefined;
       /** @type {any} */
       this._form = undefined;
+      this._formBottom = undefined;
+      this._rowsHost = undefined;
+      /** @type {{ entity: string, name: string }[]} */
+      this._rows = [];
+      /** @type {HTMLSelectElement[]} */
+      this._entitySelects = [];
+      /** @type {HTMLInputElement[]} */
+      this._nameInputs = [];
+      /** @type {HTMLButtonElement[]} */
+      this._removeButtons = [];
+      /** @type {HTMLButtonElement | undefined} */
+      this._addButton = undefined;
+      this._themeKey = "";
+      this._sensorKey = "";
     }
 
     /** @param {Record<string, unknown>} config */
     setConfig(config) {
-      assertConfig(config);
       this._config = { ...config };
+      this._rows = rowsFromConfig(config);
       this._ensureForm();
-      if (this._form) {
-        this._form.data = this._config;
-      }
+      this._setFormData();
+      this._renderRows();
     }
 
     /** @param {any} hass */
@@ -259,41 +351,156 @@
       this._hass = hass;
       if (this._form) {
         this._form.hass = hass;
+        this._formBottom.hass = hass;
+        this._syncSchema();
       }
+      const key = Object.keys(hass?.states || {}).filter((id) => id.startsWith("sensor.")).sort().join("\0");
+      if (key !== this._sensorKey) {
+        this._sensorKey = key;
+        this._renderRows();
+      }
+    }
+
+    _setFormData() {
+      if (this._form) this._form.data = this._config;
+      if (this._formBottom) this._formBottom.data = this._config;
+    }
+
+    _syncSchema() {
+      const next = editorSchema(this._hass);
+      if (next.key === this._themeKey) return;
+      this._themeKey = next.key;
+      this._form.schema = next.schema.filter((field) => ["title", "theme", "reset_display"].includes(field.name));
     }
 
     connectedCallback() {
       this._ensureForm();
+      this._renderRows();
     }
 
-    _ensureForm() {
-      if (this._form || !this.isConnected) return;
-      const form = document.createElement("ha-form");
-      form.schema = CONFIG_FORM_SCHEMA;
+    /** @param {HTMLElement} form */
+    _bindForm(form) {
       form.computeLabel = computeLabel;
       form.computeHelper = computeHelper;
       form.data = this._config;
-      if (this._hass) {
-        form.hass = this._hass;
-      }
+      if (this._hass) form.hass = this._hass;
       form.addEventListener("value-changed", (ev) => {
         ev.stopPropagation();
         const value = ev.detail?.value || {};
         const config = { ...this._config, ...value };
-        if (this._config.type) {
-          config.type = this._config.type;
-        }
+        if (this._config.type) config.type = this._config.type;
+        if (!value.theme) delete config.theme;
         this._config = config;
-        this.dispatchEvent(
-          new CustomEvent("config-changed", {
-            detail: { config },
-            bubbles: true,
-            composed: true,
-          })
-        );
+        this._setFormData();
+        this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
       });
-      this._form = form;
-      this.appendChild(form);
+    }
+
+    _ensureForm() {
+      if (this._form || !this.isConnected) return;
+      const next = editorSchema(this._hass);
+      this._themeKey = next.key;
+      const top = /** @type {any} */ (document.createElement("ha-form"));
+      top.schema = next.schema.filter((field) => ["title", "theme", "reset_display"].includes(field.name));
+      this._bindForm(top);
+      this._rowsHost = document.createElement("div");
+      const bottom = /** @type {any} */ (document.createElement("ha-form"));
+      bottom.schema = next.schema.filter((field) => !["title", "theme", "reset_display"].includes(field.name));
+      this._bindForm(bottom);
+      this._form = top;
+      this._formBottom = bottom;
+      this.append(top, this._rowsHost, bottom);
+    }
+
+    _emitRows() {
+      const config = applyRows(this._config, this._rows);
+      if (this._config.type) config.type = this._config.type;
+      this._config = config;
+      this._setFormData();
+      this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+    }
+
+    _renderRows() {
+      if (!this._rowsHost || !this._rows) return;
+      this._rowsHost.replaceChildren();
+      this._entitySelects = [];
+      this._nameInputs = [];
+      this._removeButtons = [];
+      const choices = sensorChoices(this._hass, this._rows.map((row) => row.entity));
+      this._rows.forEach((row, index) => {
+        const block = document.createElement("div");
+        block.style.margin = "12px 0";
+        const select = /** @type {HTMLSelectElement} */ (document.createElement("select"));
+        if (index > 0) {
+          const blank = document.createElement("option");
+          blank.value = "";
+          blank.textContent = "Select entity";
+          select.appendChild(blank);
+        }
+        for (const choice of choices) {
+          const option = document.createElement("option");
+          option.value = choice.value;
+          option.textContent = choice.label;
+          select.appendChild(option);
+        }
+        select.value = row.entity;
+        select.addEventListener("change", (ev) => {
+          ev.stopPropagation();
+          this._rows[index].entity = select.value;
+          this._emitRows();
+        });
+        const input = /** @type {HTMLInputElement} */ (document.createElement("input"));
+        input.value = row.name;
+        input.placeholder = this._hass?.states?.[row.entity]?.attributes?.friendly_name || "Entity name";
+        input.addEventListener("input", (ev) => {
+          ev.stopPropagation();
+          this._rows[index].name = input.value;
+          this._emitRows();
+        });
+        block.append(
+          this._field(index === 0 ? "Primary entity" : "Additional entity", select),
+          this._field("Label", input),
+        );
+        if (index > 0) {
+          const remove = /** @type {HTMLButtonElement} */ (document.createElement("button"));
+          remove.type = "button";
+          remove.textContent = "Remove";
+          remove.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            this._rows.splice(index, 1);
+            this._renderRows();
+            this._emitRows();
+          });
+          block.appendChild(remove);
+          this._removeButtons.push(remove);
+        }
+        this._entitySelects.push(select);
+        this._nameInputs.push(input);
+        this._rowsHost.appendChild(block);
+      });
+      const add = /** @type {HTMLButtonElement} */ (document.createElement("button"));
+      add.type = "button";
+      add.textContent = "Add entity";
+      add.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        this._rows.push({ entity: "", name: "" });
+        this._renderRows();
+      });
+      this._addButton = add;
+      this._rowsHost.appendChild(add);
+    }
+
+    /** @param {string} caption @param {HTMLElement} control */
+    _field(caption, control) {
+      const label = document.createElement("label");
+      label.style.display = "flex";
+      label.style.flexDirection = "column";
+      label.style.gap = "4px";
+      label.style.marginBottom = "8px";
+      label.append(caption, control);
+      control.style.width = "100%";
+      control.style.boxSizing = "border-box";
+      return label;
     }
   }
 

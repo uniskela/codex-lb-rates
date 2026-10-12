@@ -26,17 +26,38 @@ function setup(config = {}) {
     }
     attachShadow() { return new Element(); }
     appendChild(child) { this.children.push(child); return child; }
+    append(...nodes) {
+      for (const node of nodes) {
+        if (node instanceof Element) this.appendChild(node);
+        else this.textContent = `${this.textContent || ""}${node}`;
+      }
+    }
+    replaceChildren(...nodes) {
+      this.children = [];
+      this.append(...nodes);
+    }
     querySelector(selector) {
       return this.children.find((child) => child.tagName === selector || `.${child.className}` === selector) || null;
     }
     querySelectorAll() { return []; }
-    addEventListener() {}
-    dispatchEvent(event) { this.event = event; }
+    addEventListener(type, fn) { (this._listeners ||= new Map()).set(type, fn); }
+    dispatchEvent(event) {
+      this.event = event;
+      this._listeners?.get(event.type)?.(event);
+      return true;
+    }
   }
   vm.runInNewContext(bundle, {
     HTMLElement: Element,
     customElements: { get: (name) => elements.get(name), define: (name, cls) => elements.set(name, cls) },
-    document: { createElement: (tagName) => Object.assign(new Element(), { tagName }) },
+    document: {
+      createElement: (tagName) => {
+        const Cls = elements.get(tagName);
+        const el = Cls ? new Cls() : new Element();
+        el.tagName = tagName;
+        return el;
+      },
+    },
     window: {}, console: { info() {} },
     Date: class extends Date { static now() { return now; } },
     Intl,
@@ -200,6 +221,75 @@ test("editor exposes native theme picker and reset display choices", () => {
   assert.ok(form.schema.find((field) => field.name === "theme").selector.theme);
   assert.deepEqual(Array.from(form.schema.find((field) => field.name === "reset_display").selector.select.options, (item) => item.value),
     ["countdown", "absolute", "hidden"]);
+});
+
+test("editor theme dropdown lists installed themes and can clear", () => {
+  const { hass, Card } = setup();
+  const editor = Card.getConfigElement();
+  editor.setConfig({ entity: "sensor.primary", theme: "Frosted" });
+  editor.hass = hass;
+  const labels = () => Array.from(
+    editor._form.schema.find((field) => field.name === "theme").selector.select.options,
+    (item) => item.label
+  );
+  assert.deepEqual(labels(), ["Frosted", "Other"]);
+  hass.themes.themes = { ...hass.themes.themes, Graphite: { "primary-text-color": "#888" } };
+  editor.hass = hass;
+  assert.deepEqual(labels(), ["Frosted", "Graphite", "Other"]);
+  editor._form.dispatchEvent({
+    type: "value-changed",
+    detail: { value: { entity: "sensor.primary", theme: "" } },
+    stopPropagation() {},
+  });
+  assert.equal(editor.event.detail.config.theme, undefined);
+  assert.equal(editor.event.detail.config.entity, "sensor.primary");
+});
+
+test("editor sets entity labels for the primary and extra rows", () => {
+  const { hass, Card } = setup();
+  const editor = Card.getConfigElement();
+  editor.hass = hass;
+  editor.setConfig({ entity: "sensor.primary", entities: ["sensor.weekly"] });
+  const plain = (value) => JSON.parse(JSON.stringify(value));
+  assert.deepEqual(plain(editor._rows), [
+    { entity: "sensor.primary", name: "" },
+    { entity: "sensor.weekly", name: "" },
+  ]);
+  assert.deepEqual(Array.from(editor._entitySelects[0].children, (option) => option.value), ["sensor.primary", "sensor.weekly"]);
+  assert.equal(editor._nameInputs[0].placeholder, "Primary");
+  editor._nameInputs[0].value = "5h pool";
+  editor._nameInputs[0].dispatchEvent({ type: "input", stopPropagation() {} });
+  assert.equal(editor.event.detail.config.name, "5h pool");
+  assert.equal(editor.event.detail.config.entity, "sensor.primary");
+  editor._nameInputs[1].value = "Weekly pool";
+  editor._nameInputs[1].dispatchEvent({ type: "input", stopPropagation() {} });
+  assert.deepEqual(plain(editor.event.detail.config.entities), [{ entity: "sensor.weekly", name: "Weekly pool" }]);
+  editor._nameInputs[1].value = "  ";
+  editor._nameInputs[1].dispatchEvent({ type: "input", stopPropagation() {} });
+  assert.deepEqual(plain(editor.event.detail.config.entities), ["sensor.weekly"]);
+  editor.setConfig({
+    entity: "sensor.primary",
+    name: "5h pool",
+    entities: [{ entity: "sensor.weekly", name: "Weekly pool" }],
+  });
+  assert.equal(editor._nameInputs[0].value, "5h pool");
+  assert.equal(editor._nameInputs[1].value, "Weekly pool");
+  editor._addButton.dispatchEvent({ type: "click", stopPropagation() {} });
+  assert.equal(editor._rows.length, 3);
+  editor._removeButtons[0].dispatchEvent({ type: "click", stopPropagation() {} });
+  assert.equal(editor.event.detail.config.entities, undefined);
+  assert.equal(editor.event.detail.config.name, "5h pool");
+});
+
+test("row labels replace entity names on the card", () => {
+  const { card } = setup({
+    name: "5h pool",
+    entities: [{ entity: "sensor.weekly", name: "Weekly pool" }],
+  });
+  const text = html(card);
+  assert.match(text, /5h pool/);
+  assert.match(text, /Weekly pool/);
+  assert.doesNotMatch(text, />Primary</);
 });
 
 test("reject unsupported reset modes", () => {
