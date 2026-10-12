@@ -373,6 +373,28 @@ test("a label on an extra row waits for an entity before it is saved", () => {
   assert.deepEqual(JSON.parse(JSON.stringify(editor.event.detail.config.entities)), [{ entity: "sensor.weekly", name: "later" }]);
 });
 
+test("editing the primary row keeps an unsaved extra label", () => {
+  const { hass, Card } = setup();
+  const editor = Card.getConfigElement();
+  editor.hass = hass;
+  editor.setConfig({ entity: "sensor.primary" });
+  editor._addButton.dispatchEvent({ type: "click", stopPropagation() {} });
+  const extra = editor._nameInputs[1];
+  extra.value = "later";
+  extra.dispatchEvent({ type: "input", stopPropagation() {} });
+  const primary = editor._nameInputs[0];
+  primary.value = "Pool";
+  primary.dispatchEvent({ type: "input", stopPropagation() {} });
+  assert.equal(editor.event.detail.config.name, "Pool");
+  assert.equal(editor.event.detail.config.entities, undefined);
+  assert.equal(editor._nameInputs[1], extra);
+  assert.equal(extra.value, "later");
+  editor.setConfig(editor.event.detail.config);
+  assert.equal(editor._nameInputs[0], primary);
+  assert.equal(editor._nameInputs[1], extra);
+  assert.equal(extra.value, "later");
+});
+
 test("row labels replace entity names on the card", () => {
   const { card } = setup({
     name: "5h pool",

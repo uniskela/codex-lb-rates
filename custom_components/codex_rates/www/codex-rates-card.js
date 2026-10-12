@@ -338,6 +338,16 @@
     return next;
   }
 
+  /** Keep extra rows that have no sensor yet. They are not part of the saved config. */
+  function withDrafts(persisted, current) {
+    const rows = persisted.map((row) => ({ entity: row.entity, name: row.name }));
+    current.forEach((row, index) => {
+      if (!index || row.entity) return;
+      rows.splice(Math.min(index, rows.length), 0, { entity: "", name: row.name });
+    });
+    return rows;
+  }
+
   /**
    * Compact visual editor — HA prefers getConfigElement over getConfigForm.
    * Uses frontend ha-form (always present in the card editor dialog).
@@ -408,7 +418,7 @@
     }
 
     _syncRowsKey() {
-      this._rowsKey = JSON.stringify(this._rows);
+      this._rowsKey = JSON.stringify(rowsFromConfig(applyRows(this._config, this._rows)));
     }
 
     _setFormData() {
@@ -465,17 +475,17 @@
     _emitRows() {
       const config = applyRows(this._config, this._rows);
       if (this._config.type) config.type = this._config.type;
-      const rows = rowsFromConfig(config);
-      const key = JSON.stringify(rows);
+      const persisted = rowsFromConfig(config);
+      const rows = withDrafts(persisted, this._rows);
       this._config = config;
-      if (key !== JSON.stringify(this._rows)) {
+      if (JSON.stringify(rows) !== JSON.stringify(this._rows)) {
         const active = typeof document !== "undefined" ? document.activeElement : null;
         const index = this._entitySelects.indexOf(active);
         this._rows = rows;
         this._renderRows();
         if (index >= 0) this._entitySelects[Math.min(index, this._entitySelects.length - 1)]?.focus?.();
       } else {
-        this._syncRowsKey();
+        this._rowsKey = JSON.stringify(persisted);
       }
       this._setFormData();
       this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
