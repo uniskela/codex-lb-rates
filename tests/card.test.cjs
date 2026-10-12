@@ -401,12 +401,15 @@ test("an unsaved row stays above the next sensor when the primary is cleared", (
   editor.hass = hass;
   editor.setConfig({ entity: "sensor.primary", entities: ["sensor.weekly"] });
   editor._addButton.dispatchEvent({ type: "click", stopPropagation() {} });
-  editor._entitySelects[2].value = "sensor.weekly";
-  editor._entitySelects[2].dispatchEvent({ type: "change", stopPropagation() {} });
-  editor._nameInputs[1].value = "d1";
-  editor._nameInputs[1].dispatchEvent({ type: "input", stopPropagation() {} });
   editor._entitySelects[1].value = "";
   editor._entitySelects[1].dispatchEvent({ type: "change", stopPropagation() {} });
+  const third = editor._entitySelects[2];
+  third.dispatchEvent({ type: "focus", stopPropagation() {} });
+  assert.ok(Array.from(third.children, (option) => option.value).includes("sensor.weekly"));
+  third.value = "sensor.weekly";
+  third.dispatchEvent({ type: "change", stopPropagation() {} });
+  editor._nameInputs[1].value = "d1";
+  editor._nameInputs[1].dispatchEvent({ type: "input", stopPropagation() {} });
   const plain = (value) => JSON.parse(JSON.stringify(value));
   assert.deepEqual(plain(editor._rows), [
     { entity: "sensor.primary", name: "" },
