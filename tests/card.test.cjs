@@ -255,9 +255,14 @@ test("editor sets entity labels for the primary and extra rows", () => {
     { entity: "sensor.primary", name: "" },
     { entity: "sensor.weekly", name: "" },
   ]);
-  assert.deepEqual(Array.from(editor._entitySelects[0].children, (option) => option.value), ["sensor.primary", "sensor.weekly"]);
+  assert.deepEqual(Array.from(editor._entitySelects[0].children, (option) => option.value), ["", "sensor.primary", "sensor.weekly"]);
   assert.equal(editor._nameInputs[0].placeholder, "Primary");
-  editor._nameInputs[0].value = "5h pool";
+  const label = editor._nameInputs[0];
+  label.value = "5";
+  label.dispatchEvent({ type: "input", stopPropagation() {} });
+  editor.setConfig(editor.event.detail.config);
+  assert.equal(editor._nameInputs[0], label);
+  label.value = "5h pool";
   editor._nameInputs[0].dispatchEvent({ type: "input", stopPropagation() {} });
   assert.equal(editor.event.detail.config.name, "5h pool");
   assert.equal(editor.event.detail.config.entity, "sensor.primary");

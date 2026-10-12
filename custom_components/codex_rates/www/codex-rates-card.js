@@ -16,7 +16,7 @@
   const CARD_TYPE = "codex-rates-card";
   const EDITOR_TYPE = "codex-rates-card-editor";
   // Bump when editor/card surface changes so console + digest cache-bust clearly.
-  const CARD_VERSION = "1.2.2";
+  const CARD_VERSION = "1.2.3";
 
   /** @param {number} value */
   function clampPercent(value) {
@@ -294,14 +294,14 @@
     const next = { ...config };
     if (primary) {
       next.entity = primary.entity;
-      if (primary.name.trim()) next.name = primary.name.trim();
+      if (primary.name.trim()) next.name = primary.name;
       else delete next.name;
     } else {
       delete next.entity;
       delete next.name;
     }
     if (rest.length) {
-      next.entities = rest.map((row) => (row.name.trim() ? { entity: row.entity, name: row.name.trim() } : row.entity));
+      next.entities = rest.map((row) => (row.name.trim() ? { entity: row.entity, name: row.name } : row.entity));
     } else {
       delete next.entities;
     }
@@ -334,16 +334,26 @@
       /** @type {HTMLButtonElement | undefined} */
       this._addButton = undefined;
       this._themeKey = "";
-      this._sensorKey = "";
+      this._rowsKey = "";
+      /** @type {Set<string>} */
+      this._sensorSet = new Set();
+      this._sensorCount = -1;
     }
 
     /** @param {Record<string, unknown>} config */
     setConfig(config) {
       this._config = { ...config };
-      this._rows = rowsFromConfig(config);
       this._ensureForm();
+      const rows = rowsFromConfig(config);
+      const key = JSON.stringify(rows);
+      // The dashboard echoes config-changed back through setConfig. Rebuilding
+      // here would destroy the focused label after every keystroke.
+      if (key !== this._rowsKey) {
+        this._rowsKey = key;
+        this._rows = rows;
+        this._renderRows();
+      }
       this._setFormData();
-      this._renderRows();
     }
 
     /** @param {any} hass */
@@ -354,11 +364,21 @@
         this._formBottom.hass = hass;
         this._syncSchema();
       }
-      const key = Object.keys(hass?.states || {}).filter((id) => id.startsWith("sensor.")).sort().join("\0");
-      if (key !== this._sensorKey) {
-        this._sensorKey = key;
-        this._renderRows();
-      }
+      const ids = Object.keys(hass?.states || {}).filter((id) => id.startsWith("sensor."));
+      const changed = ids.length !== this._sensorCount || ids.some((id) => !this._sensorSet.has(id));
+      if (!changed || this._rowFocused()) return;
+      this._sensorSet = new Set(ids);
+      this._sensorCount = ids.length;
+      this._renderRows();
+    }
+
+    _rowFocused() {
+      const active = typeof document !== "undefined" ? document.activeElement : null;
+      return !!(active && this._rowsHost?.contains?.(active));
+    }
+
+    _syncRowsKey() {
+      this._rowsKey = JSON.stringify(this._rows);
     }
 
     _setFormData() {
@@ -431,12 +451,10 @@
         const block = document.createElement("div");
         block.style.margin = "12px 0";
         const select = /** @type {HTMLSelectElement} */ (document.createElement("select"));
-        if (index > 0) {
-          const blank = document.createElement("option");
-          blank.value = "";
-          blank.textContent = "Select entity";
-          select.appendChild(blank);
-        }
+        const blank = document.createElement("option");
+        blank.value = "";
+        blank.textContent = "Select entity";
+        select.appendChild(blank);
         for (const choice of choices) {
           const option = document.createElement("option");
           option.value = choice.value;
@@ -447,7 +465,8 @@
         select.addEventListener("change", (ev) => {
           ev.stopPropagation();
           this._rows[index].entity = select.value;
-          this._emitRows();
+          this._syncRowsKey();
+          if (this._rows.some((item) => item.entity)) this._emitRows();
         });
         const input = /** @type {HTMLInputElement} */ (document.createElement("input"));
         input.value = row.name;
@@ -455,7 +474,15 @@
         input.addEventListener("input", (ev) => {
           ev.stopPropagation();
           this._rows[index].name = input.value;
-          this._emitRows();
+          this._syncRowsKey();
+          if (this._rows[index].entity) this._emitRows();
+        });
+        input.addEventListener("change", (ev) => {
+          ev.stopPropagation();
+          input.value = input.value.trim();
+          this._rows[index].name = input.value;
+          this._syncRowsKey();
+          if (this._rows[index].entity) this._emitRows();
         });
         block.append(
           this._field(index === 0 ? "Primary entity" : "Additional entity", select),
@@ -488,6 +515,7 @@
       });
       this._addButton = add;
       this._rowsHost.appendChild(add);
+      this._syncRowsKey();
     }
 
     /** @param {string} caption @param {HTMLElement} control */
