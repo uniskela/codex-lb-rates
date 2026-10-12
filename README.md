@@ -75,7 +75,7 @@ The canonical user documentation is published at **[uniskela.com/docs/codex-lb-r
 
 ## Quota alerts
 
-Current blueprint: **Codex-LB Rates quota alerts v2.0.0**
+Current blueprint: **Codex-LB Rates quota alerts v2.0.1**
 
 It can monitor one or more remaining-% sensors and send one-shot **low**, **exceeded**, and **refreshed** alerts without repeatedly notifying while a sensor remains in the same band.
 

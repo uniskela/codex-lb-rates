@@ -259,20 +259,29 @@
     };
   }
 
-  /** @param {any} hass @param {string[]} extra */
-  function sensorChoices(hass, extra) {
-    const ids = new Set(Object.keys(hass?.states || {}).filter((id) => id.startsWith("sensor.")));
-    for (const id of extra) if (id) ids.add(id);
-    return [...ids].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })).map((id) => ({
-      value: id,
-      label: hass?.states?.[id]?.attributes?.friendly_name || id,
-    }));
-  }
-
   /** @param {any} hass @param {string} id */
   function selectedChoice(hass, id) {
     if (!id) return [];
     return [{ value: id, label: hass?.states?.[id]?.attributes?.friendly_name || id }];
+  }
+
+  // ponytail: cap search hits; raise the cap if 40 matching sensors is too few to find one.
+  const SENSOR_SEARCH_CAP = 40;
+
+  /** @param {any} hass @param {string} query */
+  function searchChoices(hass, query) {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    /** @type {{ value: string, label: string }[]} */
+    const matches = [];
+    for (const id of Object.keys(hass?.states || {})) {
+      if (!id.startsWith("sensor.")) continue;
+      const label = hass.states[id]?.attributes?.friendly_name || id;
+      if (!id.toLowerCase().includes(q) && !String(label).toLowerCase().includes(q)) continue;
+      matches.push({ value: id, label });
+    }
+    matches.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+    return matches.slice(0, SENSOR_SEARCH_CAP);
   }
 
   /** @param {HTMLSelectElement} select @param {{ value: string, label: string }[]} choices */
@@ -536,19 +545,26 @@
       if (!this._rowsHost || !this._rows) return;
       this._rowsHost.replaceChildren();
       this._entitySelects = [];
+      this._entitySearches = [];
       this._nameInputs = [];
       this._removeButtons = [];
       this._rows.forEach((row, index) => {
         const block = document.createElement("div");
         block.style.margin = "12px 0";
         const select = /** @type {HTMLSelectElement} */ (document.createElement("select"));
-        const choicesFor = () => sensorChoices(this._hass, this._rows.map((item) => item.entity));
-        // ponytail: full option list only while focused; search/cap if opening the dropdown janks.
+        const search = /** @type {HTMLInputElement} */ (document.createElement("input"));
+        search.placeholder = "Search sensors";
+        const showMatches = () => {
+          const selected = this._rows[index].entity;
+          const matches = searchChoices(this._hass, search.value).filter((choice) => choice.value !== selected);
+          fillEntitySelect(select, [...selectedChoice(this._hass, selected), ...matches]);
+          select.value = selected;
+        };
         fillEntitySelect(select, selectedChoice(this._hass, row.entity));
         select.value = row.entity;
-        select.addEventListener("focus", () => {
-          fillEntitySelect(select, choicesFor());
-          select.value = this._rows[index].entity;
+        search.addEventListener("input", (ev) => {
+          ev.stopPropagation();
+          showMatches();
         });
         select.addEventListener("blur", () => {
           const current = this._rows[index].entity;
@@ -558,6 +574,9 @@
         select.addEventListener("change", (ev) => {
           ev.stopPropagation();
           this._rows[index].entity = select.value;
+          search.value = "";
+          fillEntitySelect(select, selectedChoice(this._hass, select.value));
+          select.value = this._rows[index].entity;
           this._syncRowsKey();
           this._emitRows();
         });
@@ -578,6 +597,7 @@
           if (index === 0 || this._rows[index].entity) this._emitRows();
         });
         block.append(
+          this._field("Search sensors", search),
           this._field(index === 0 ? "Primary entity" : "Additional entity", select),
           this._field("Label", input),
         );
@@ -595,6 +615,7 @@
           this._removeButtons.push(remove);
         }
         this._entitySelects.push(select);
+        this._entitySearches.push(search);
         this._nameInputs.push(input);
         this._rowsHost.appendChild(block);
       });

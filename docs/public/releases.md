@@ -18,7 +18,7 @@ Integration version sources bumped together: `version.txt` and `custom_component
 
 ## Blueprint version
 
-Blueprint version: **2.0.0**
+Blueprint version: **2.0.1**
 
 The **Blueprint version** belongs to `blueprints/automation/codex_rates/quota_warning.yaml` and is deliberately independent of the integration version. Release Please does not bump it automatically.
 

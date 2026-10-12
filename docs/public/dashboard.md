@@ -50,7 +50,7 @@ yellow: 20
 
 ### Labels
 
-The visual editor lists installed sensor entities for the primary row and each additional row. **Label** replaces the entity name on the card (the “Codex-LB pool All accounts …” text). Leave a label blank to keep the entity’s name. A label on an additional row is saved as `{ entity, name }`; a blank label stays a plain entity ID.
+The visual editor searches installed sensor entities for the primary row and each additional row. Type part of the name or entity ID; the dropdown stays limited to matches. **Label** replaces the entity name on the card (the “Codex-LB pool All accounts …” text). Leave a label blank to keep the entity’s name. A label on an additional row is saved as `{ entity, name }`; a blank label stays a plain entity ID.
 
 Object-form rows still load in the visual editor. The built-in form fallback, used only when the card editor element is unavailable, still refuses object rows so it cannot flatten them.
 

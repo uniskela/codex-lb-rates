@@ -256,7 +256,9 @@ test("editor sets entity labels for the primary and extra rows", () => {
     { entity: "sensor.weekly", name: "" },
   ]);
   assert.deepEqual(Array.from(editor._entitySelects[0].children, (option) => option.value), ["", "sensor.primary"]);
-  editor._entitySelects[0].dispatchEvent({ type: "focus", stopPropagation() {} });
+  const search = editor._entitySearches[0];
+  search.value = "week";
+  search.dispatchEvent({ type: "input", stopPropagation() {} });
   assert.deepEqual(Array.from(editor._entitySelects[0].children, (option) => option.value), ["", "sensor.primary", "sensor.weekly"]);
   editor._entitySelects[0].dispatchEvent({ type: "blur", stopPropagation() {} });
   assert.deepEqual(Array.from(editor._entitySelects[0].children, (option) => option.value), ["", "sensor.primary"]);
@@ -404,7 +406,8 @@ test("an unsaved row stays above the next sensor when the primary is cleared", (
   editor._entitySelects[1].value = "";
   editor._entitySelects[1].dispatchEvent({ type: "change", stopPropagation() {} });
   const third = editor._entitySelects[2];
-  third.dispatchEvent({ type: "focus", stopPropagation() {} });
+  editor._entitySearches[2].value = "weekly";
+  editor._entitySearches[2].dispatchEvent({ type: "input", stopPropagation() {} });
   assert.ok(Array.from(third.children, (option) => option.value).includes("sensor.weekly"));
   third.value = "sensor.weekly";
   third.dispatchEvent({ type: "change", stopPropagation() {} });

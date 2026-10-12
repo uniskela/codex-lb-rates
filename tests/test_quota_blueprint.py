@@ -109,3 +109,9 @@ def test_docs_offer_one_click_main_branch_blueprint_import():
 def test_docs_clarify_state_change_trigger_is_not_threshold_only():
     assert "not a threshold-only trigger" in DOCS.lower()
     assert "threshold" in DOCS.lower()
+
+
+def test_blueprint_limits_the_picker_and_skips_used_percent_sensors():
+    assert "integration: codex_rates" in BLUEPRINT
+    assert "state_attr(repeat.item, 'remaining_percent') is none" in BLUEPRINT
+    assert "used-percent" in DOCS.lower()

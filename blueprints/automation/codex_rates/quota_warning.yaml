@@ -1,7 +1,7 @@
 blueprint:
-  name: Codex-LB Rates quota alerts (v2.0.0)
+  name: Codex-LB Rates quota alerts (v2.0.1)
   description: >-
-    Blueprint version: 2.0.0. Alert on remaining-% sensors for low quota,
+    Blueprint version: 2.0.1. Alert on remaining-% sensors for low quota,
     quota exceeded, and quota refreshed. Select one or more sensors (pool
     and/or accounts). Uses one Text helper to remember which alerts already
     fired so you are not spammed. Runs when a selected percentage state
@@ -20,11 +20,13 @@ blueprint:
           name: Remaining percentage sensors
           description: >-
             One or more Codex-LB Rates remaining-% sensors (pool and/or
-            accounts). Unit must be %.
+            accounts). The list is percent sensors from this integration.
+            Used-percent sensors are ignored.
           selector:
             entity:
               multiple: true
               filter:
+                integration: codex_rates
                 domain: sensor
                 unit_of_measurement: "%"
         alert_state:
@@ -339,7 +341,8 @@ actions:
             sensor_ok: >-
               {{ is_number(states(repeat.item))
                  and 0 <= states(repeat.item) | float(-1) <= 100
-                 and state_attr(repeat.item, 'unit_of_measurement') == '%' }}
+                 and state_attr(repeat.item, 'unit_of_measurement') == '%'
+                 and state_attr(repeat.item, 'remaining_percent') is none }}
         - variables:
             token_low: "{{ token_key }}:l"
             token_exceeded: "{{ token_key }}:e"

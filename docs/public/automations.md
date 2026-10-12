@@ -1,6 +1,6 @@
 # Quota alert automations
 
-Blueprint version: **2.0.0**
+Blueprint version: **2.0.1**
 
 The **Codex-LB Rates quota alerts** blueprint watches one or more remaining-percentage sensors and can notify when quota becomes **low**, is **exceeded**, or is **refreshed**.
 
@@ -42,8 +42,8 @@ Then reload automations or restart Home Assistant.
 ### 3. Create the automation
 
 1. Open **Settings → Automations & scenes → Create automation → Use blueprint**.
-2. Select **Codex-LB Rates quota alerts (v2.0.0)**.
-3. Choose one or more **remaining percentage sensors**.
+2. Select **Codex-LB Rates quota alerts (v2.0.1)**.
+3. Choose one or more **remaining percentage sensors**. The picker lists percent sensors from this integration. A used-percent sensor is skipped if one is already selected, because its state is usage rather than remaining quota.
 4. Select the Text helper from step 1.
 5. Keep the default thresholds or change them.
 6. Choose whether to create Home Assistant persistent notifications.
@@ -152,6 +152,12 @@ If you intentionally imported a URL pinned to a release tag, it remains pinned u
 
 See [Upgrading](upgrading.md) for the difference between integration and blueprint updates.
 
+## Version history
+
+### 2.0.1
+
+Re-import the blueprint. The sensor picker lists percent sensors from this integration, and a used-percent sensor no longer fires a remaining-quota alert. Automations that already watch remaining-percent sensors keep those selections.
+
 ## Upgrading from blueprint v1
 
 Existing v1 multi-sensor automations can keep their selected sensors, thresholds, Text helper, and phone selections.
@@ -175,6 +181,7 @@ Version 2 also changed phone delivery to direct notify-entity device targeting a
 | Text helper is newly created and reports `unknown` | Initializes the helper and continues |
 | Text helper is missing/unavailable | Stops with an explicit trace error |
 | Sensor is non-numeric, outside 0–100, or not a `%` entity | Skips that sensor |
+| Sensor is a used-percent sensor (`remaining_percent` attribute) | Skips that sensor |
 
 The automation uses queued mode so overlapping state changes are not silently discarded.
 
