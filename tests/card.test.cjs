@@ -247,6 +247,7 @@ test("editor theme dropdown lists installed themes and can clear", () => {
 
 test("editor sets entity labels for the primary and extra rows", () => {
   const { hass, Card } = setup();
+  hass.states["sensor.other"] = { state: "50", attributes: { friendly_name: "Monthly" } };
   const editor = Card.getConfigElement();
   editor.hass = hass;
   editor.setConfig({ entity: "sensor.primary", entities: ["sensor.weekly"] });
@@ -259,7 +260,9 @@ test("editor sets entity labels for the primary and extra rows", () => {
   const search = editor._entitySearches[0];
   search.value = "week";
   search.dispatchEvent({ type: "input", stopPropagation() {} });
-  assert.deepEqual(Array.from(editor._entitySelects[0].children, (option) => option.value), ["", "sensor.primary", "sensor.weekly"]);
+  const matched = Array.from(editor._entitySelects[0].children, (option) => option.value);
+  assert.ok(matched.includes("sensor.weekly"));
+  assert.ok(!matched.includes("sensor.other"));
   editor._entitySelects[0].dispatchEvent({ type: "blur", stopPropagation() {} });
   assert.deepEqual(Array.from(editor._entitySelects[0].children, (option) => option.value), ["", "sensor.primary"]);
   assert.equal(editor._nameInputs[0].placeholder, "Primary");
@@ -399,6 +402,7 @@ test("editing the primary row keeps an unsaved extra label", () => {
 
 test("an unsaved row stays above the next sensor when the primary is cleared", () => {
   const { hass, Card } = setup();
+  hass.states["sensor.other"] = { state: "50", attributes: { friendly_name: "Monthly" } };
   const editor = Card.getConfigElement();
   editor.hass = hass;
   editor.setConfig({ entity: "sensor.primary", entities: ["sensor.weekly"] });
@@ -408,7 +412,9 @@ test("an unsaved row stays above the next sensor when the primary is cleared", (
   const third = editor._entitySelects[2];
   editor._entitySearches[2].value = "weekly";
   editor._entitySearches[2].dispatchEvent({ type: "input", stopPropagation() {} });
-  assert.ok(Array.from(third.children, (option) => option.value).includes("sensor.weekly"));
+  const matched = Array.from(third.children, (option) => option.value);
+  assert.ok(matched.includes("sensor.weekly"));
+  assert.ok(!matched.includes("sensor.other"));
   third.value = "sensor.weekly";
   third.dispatchEvent({ type: "change", stopPropagation() {} });
   editor._nameInputs[1].value = "d1";

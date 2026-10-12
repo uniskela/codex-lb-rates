@@ -68,6 +68,7 @@ LB_SESSION_COOKIES = (
 
 ATTR_USED_PERCENT = "used_percent"
 ATTR_REMAINING_PERCENT = "remaining_percent"
+ATTR_QUOTA_METRIC = "quota_metric"
 ATTR_WINDOW_MINUTES = "window_minutes"
 ATTR_BY_MINUTES = "by_minutes"
 ATTR_ACCOUNT_ID = "account_id"

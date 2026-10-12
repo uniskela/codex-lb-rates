@@ -69,7 +69,7 @@ A provider can report a remaining value without every optional attribute.
 
 Used-% sensors are **off by default**. Enable them under the integration's **Configure** options (`used_percent_sensors`).
 
-When enabled, the integration adds used-percentage entities for the same quota windows that already have remaining-% sensors (account devices, and Codex-LB pool aggregates when those windows have samples). Sensor state prefers a provider-reported used % when present; otherwise it may be derived as `100 − remaining`. Remaining % stays the primary dashboard and automation target; the quota warning blueprint is unchanged.
+When enabled, the integration adds used-percentage entities for the same quota windows that already have remaining-% sensors (account devices, and Codex-LB pool aggregates when those windows have samples). Sensor state prefers a provider-reported used % when present; otherwise it may be derived as `100 − remaining`. Remaining % stays the primary dashboard and automation target. The quota warning blueprint ignores used-percent sensors.
 
 Account used sensors can include:
 
@@ -78,6 +78,7 @@ Account used sensors can include:
 | `account_id` | Provider account identifier |
 | `email` | Account email when available |
 | `remaining_percent` | Remaining percentage for the same window when available |
+| `quota_metric` | Always `used` on a used-percent sensor, so automations can tell it from a remaining-percent sensor |
 | `window_minutes` | Duration reported for that quota window |
 | `quota_model` | Present on Spark sensors; currently `gpt-5.3-codex-spark` |
 

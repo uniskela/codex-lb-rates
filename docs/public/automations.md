@@ -156,7 +156,7 @@ See [Upgrading](upgrading.md) for the difference between integration and bluepri
 
 ### 2.0.1
 
-Re-import the blueprint. The sensor picker lists percent sensors from this integration, and a used-percent sensor no longer fires a remaining-quota alert. Automations that already watch remaining-percent sensors keep those selections.
+Re-import the blueprint after updating the integration. The sensor picker lists percent sensors from this integration. Used-percent sensors are ignored, including ones that have no remaining value. An automation that watched a used-percent sensor stops alerting for it; select the matching remaining-percent sensor instead. Automations that already watch remaining-percent sensors keep those selections.
 
 ## Upgrading from blueprint v1
 
@@ -181,7 +181,7 @@ Version 2 also changed phone delivery to direct notify-entity device targeting a
 | Text helper is newly created and reports `unknown` | Initializes the helper and continues |
 | Text helper is missing/unavailable | Stops with an explicit trace error |
 | Sensor is non-numeric, outside 0–100, or not a `%` entity | Skips that sensor |
-| Sensor is a used-percent sensor (`remaining_percent` attribute) | Skips that sensor |
+| Sensor is a used-percent sensor (`quota_metric` is `used`, or it has `remaining_percent`) | Skips that sensor |
 
 The automation uses queued mode so overlapping state changes are not silently discarded.
 

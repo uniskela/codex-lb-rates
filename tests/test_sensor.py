@@ -418,10 +418,12 @@ def test_used_percent_sensors_option_gates_account_and_pool_keys() -> None:
     sensor = CodexAccountSensor(coordinator, entry_on, "a", description)
     assert sensor.native_value == 75
     assert sensor.extra_state_attributes["remaining_percent"] == 25
+    assert sensor.extra_state_attributes["quota_metric"] == "used"
     assert sensor.name == "5h used"
 
     pool = CodexPoolSensor(coordinator, entry_on, "used_5h", "All accounts 5h used")
     assert pool.native_value == 75
+    assert pool.extra_state_attributes["quota_metric"] == "used"
     assert pool.extra_state_attributes["min"] == 75
     assert pool.extra_state_attributes["max"] == 75
     assert pool.name == "All accounts 5h used"

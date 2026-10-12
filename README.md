@@ -79,6 +79,10 @@ Current blueprint: **Codex-LB Rates quota alerts v2.0.1**
 
 It can monitor one or more remaining-% sensors and send one-shot **low**, **exceeded**, and **refreshed** alerts without repeatedly notifying while a sensor remains in the same band.
 
+### Breaking change
+
+Blueprint 2.0.1 ignores used-percent sensors. An automation that alerted on a used-percent sensor will stop alerting for that sensor. Switch it to the matching remaining-percent sensor. The sensor picker also lists only percent sensors from this integration. Re-import the blueprint after updating the integration.
+
 [![Open your Home Assistant instance and import the Codex-LB Rates quota alert blueprint.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Funiskela%2Fcodex-lb-rates%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fcodex_rates%2Fquota_warning.yaml)
 
 The blueprint requires a Home Assistant **Text helper** for its alert memory and is versioned independently from the integration. Follow **[Quota alert automations](https://uniskela.com/docs/codex-lb-rates/automations/)** rather than copying the YAML blindly.

@@ -35,6 +35,7 @@ from .const import (
     ATTR_EMAIL,
     ATTR_MAX,
     ATTR_MIN,
+    ATTR_QUOTA_METRIC,
     ATTR_REMAINING_PERCENT,
     ATTR_RESET_CREDITS_EXPIRE,
     ATTR_RESETS_AT,
@@ -874,6 +875,7 @@ def _used_pct_attrs(
     attrs: dict[str, Any] = {
         ATTR_ACCOUNT_ID: account.account_id,
         ATTR_EMAIL: account.email,
+        ATTR_QUOTA_METRIC: "used",
     }
     if remaining is not None:
         attrs[ATTR_REMAINING_PERCENT] = remaining
@@ -1051,13 +1053,16 @@ class CodexPoolSensor(CoordinatorEntity[CodexRatesCoordinator], SensorEntity):
             return None
         used = self._key.startswith("used_")
         attrs: dict[str, Any] = {
+            ATTR_QUOTA_METRIC: "used",
+        } if used else {}
+        attrs.update({
             ATTR_MIN: _invert_percent(window.max) if used else window.min,
             ATTR_MAX: _invert_percent(window.min) if used else window.max,
             ATTR_ACCOUNT_COUNT: data.pool.account_count,
             ATTR_ACTIVE_COUNT: data.pool.active_count,
             "sample_count": window.sample_count,
             "missing_quota_count": data.pool.account_count - window.sample_count,
-        }
+        })
         if window.window_minutes is not None:
             attrs[ATTR_WINDOW_MINUTES] = window.window_minutes
         if window.by_minutes:

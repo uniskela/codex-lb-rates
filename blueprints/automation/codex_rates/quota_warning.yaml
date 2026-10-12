@@ -342,7 +342,8 @@ actions:
               {{ is_number(states(repeat.item))
                  and 0 <= states(repeat.item) | float(-1) <= 100
                  and state_attr(repeat.item, 'unit_of_measurement') == '%'
-                 and state_attr(repeat.item, 'remaining_percent') is none }}
+                 and state_attr(repeat.item, 'remaining_percent') is none
+                 and state_attr(repeat.item, 'quota_metric') != 'used' }}
         - variables:
             token_low: "{{ token_key }}:l"
             token_exceeded: "{{ token_key }}:e"
