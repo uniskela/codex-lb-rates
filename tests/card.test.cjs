@@ -306,6 +306,38 @@ test("clearing the only entity saves and survives the editor echo", () => {
   assert.equal(select.value, "");
   assert.equal(editor._nameInputs[0], label);
   assert.equal(label.value, "5h pool");
+  label.value = "5h pool renamed";
+  label.dispatchEvent({ type: "input", stopPropagation() {} });
+  assert.equal(editor.event.detail.config.entity, undefined);
+  assert.equal(editor.event.detail.config.name, "5h pool renamed");
+  editor.setConfig(editor.event.detail.config);
+  assert.equal(editor._nameInputs[0], label);
+  assert.equal(label.value, "5h pool renamed");
+});
+
+test("clearing the primary entity keeps its label when another row remains", () => {
+  const { hass, Card } = setup();
+  const editor = Card.getConfigElement();
+  editor.hass = hass;
+  editor.setConfig({
+    entity: "sensor.primary",
+    name: "Pool",
+    entities: [{ entity: "sensor.weekly", name: "Weekly" }],
+  });
+  const select = editor._entitySelects[0];
+  select.value = "";
+  select.dispatchEvent({ type: "change", stopPropagation() {} });
+  const plain = (value) => JSON.parse(JSON.stringify(value));
+  assert.equal(editor.event.detail.config.entity, undefined);
+  assert.equal(editor.event.detail.config.name, "Pool");
+  assert.deepEqual(plain(editor.event.detail.config.entities), [{ entity: "sensor.weekly", name: "Weekly" }]);
+  editor.setConfig(editor.event.detail.config);
+  assert.equal(editor._entitySelects[0], select);
+  assert.equal(select.value, "");
+  assert.deepEqual(plain(editor._rows), [
+    { entity: "", name: "Pool" },
+    { entity: "sensor.weekly", name: "Weekly" },
+  ]);
 });
 
 test("row labels replace entity names on the card", () => {

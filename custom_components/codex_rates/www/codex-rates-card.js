@@ -269,6 +269,12 @@
     }));
   }
 
+  /** @param {any} hass @param {string} id */
+  function selectedChoice(hass, id) {
+    if (!id) return [];
+    return [{ value: id, label: hass?.states?.[id]?.attributes?.friendly_name || id }];
+  }
+
   /** @param {HTMLSelectElement} select @param {{ value: string, label: string }[]} choices */
   function fillEntitySelect(select, choices) {
     select.replaceChildren();
@@ -288,11 +294,15 @@
   function rowsFromConfig(config) {
     /** @type {{ entity: string, name: string }[]} */
     const rows = [];
+    const entities = /** @type {unknown[]} */ (Array.isArray(config?.entities) ? config.entities : []);
     if (config?.entity) rows.push({ entity: String(config.entity), name: config.name ? String(config.name) : "" });
-    for (const item of /** @type {unknown[]} */ (config?.entities || [])) {
+    else if (config?.name && entities.length) rows.push({ entity: "", name: String(config.name) });
+    for (const item of entities) {
       if (typeof item === "string") rows.push({ entity: item, name: "" });
       else if (item && typeof item === "object" && "entity" in item && item.entity) {
         rows.push({ entity: String(item.entity), name: "name" in item && item.name ? String(item.name) : "" });
+      } else if (item && typeof item === "object" && "name" in item && item.name) {
+        rows.push({ entity: "", name: String(item.name) });
       }
     }
     if (!rows.length) rows.push({ entity: "", name: config?.name ? String(config.name) : "" });
@@ -303,25 +313,32 @@
    * @param {Record<string, unknown>} config
    * @param {{ entity: string, name: string }[]} rows
    */
+  /** @param {{ entity: string, name: string }} row */
+  function storedRow(row) {
+    if (row.entity && row.name.trim()) return { entity: row.entity, name: row.name };
+    if (row.entity) return row.entity;
+    if (row.name.trim()) return { name: row.name };
+    return null;
+  }
+
   function applyRows(config, rows) {
-    const filled = rows.filter((row) => row.entity);
-    const [primary, ...rest] = filled;
+    const list = rows.length ? rows : [{ entity: "", name: "" }];
+    let [head, ...rest] = list;
     const next = { ...config };
-    if (primary) {
-      next.entity = primary.entity;
-      if (primary.name.trim()) next.name = primary.name;
-      else delete next.name;
-    } else {
-      delete next.entity;
-      const draft = rows.find((row) => row.name.trim());
-      if (draft) next.name = draft.name;
-      else delete next.name;
+    if (!head.entity && !head.name.trim()) {
+      const promoted = rest.find((row) => row.entity);
+      if (promoted) {
+        rest = rest.filter((row) => row !== promoted);
+        head = promoted;
+      }
     }
-    if (rest.length) {
-      next.entities = rest.map((row) => (row.name.trim() ? { entity: row.entity, name: row.name } : row.entity));
-    } else {
-      delete next.entities;
-    }
+    if (head.entity) next.entity = head.entity;
+    else delete next.entity;
+    if (head.name.trim()) next.name = head.name;
+    else delete next.name;
+    const extras = rest.map(storedRow).filter(Boolean);
+    if (extras.length) next.entities = extras;
+    else delete next.entities;
     return next;
   }
 
@@ -463,14 +480,13 @@
       this._entitySelects = [];
       this._nameInputs = [];
       this._removeButtons = [];
-      const choices = sensorChoices(this._hass, this._rows.map((row) => row.entity));
       this._rows.forEach((row, index) => {
         const block = document.createElement("div");
         block.style.margin = "12px 0";
         const select = /** @type {HTMLSelectElement} */ (document.createElement("select"));
         const choicesFor = () => sensorChoices(this._hass, this._rows.map((item) => item.entity));
         // ponytail: full option list only while focused; search/cap if opening the dropdown janks.
-        fillEntitySelect(select, choices.filter((choice) => choice.value === row.entity));
+        fillEntitySelect(select, selectedChoice(this._hass, row.entity));
         select.value = row.entity;
         select.addEventListener("focus", () => {
           fillEntitySelect(select, choicesFor());
@@ -478,7 +494,7 @@
         });
         select.addEventListener("blur", () => {
           const current = this._rows[index].entity;
-          fillEntitySelect(select, choicesFor().filter((choice) => choice.value === current));
+          fillEntitySelect(select, selectedChoice(this._hass, current));
           select.value = current;
         });
         select.addEventListener("change", (ev) => {
@@ -494,14 +510,14 @@
           ev.stopPropagation();
           this._rows[index].name = input.value;
           this._syncRowsKey();
-          if (this._rows[index].entity) this._emitRows();
+          this._emitRows();
         });
         input.addEventListener("change", (ev) => {
           ev.stopPropagation();
           input.value = input.value.trim();
           this._rows[index].name = input.value;
           this._syncRowsKey();
-          if (this._rows[index].entity) this._emitRows();
+          this._emitRows();
         });
         block.append(
           this._field(index === 0 ? "Primary entity" : "Additional entity", select),
