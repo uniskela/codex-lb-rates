@@ -16,7 +16,7 @@
   const CARD_TYPE = "codex-rates-card";
   const EDITOR_TYPE = "codex-rates-card-editor";
   // Bump when editor/card surface changes so console + digest cache-bust clearly.
-  const CARD_VERSION = "1.2.3";
+  const CARD_VERSION = "1.2.4";
 
   /** @param {number} value */
   function clampPercent(value) {
@@ -269,6 +269,21 @@
     }));
   }
 
+  /** @param {HTMLSelectElement} select @param {{ value: string, label: string }[]} choices */
+  function fillEntitySelect(select, choices) {
+    select.replaceChildren();
+    const blank = document.createElement("option");
+    blank.value = "";
+    blank.textContent = "Select entity";
+    select.appendChild(blank);
+    for (const choice of choices) {
+      const option = document.createElement("option");
+      option.value = choice.value;
+      option.textContent = choice.label;
+      select.appendChild(option);
+    }
+  }
+
   /** @param {Record<string, unknown> | null | undefined} config */
   function rowsFromConfig(config) {
     /** @type {{ entity: string, name: string }[]} */
@@ -280,7 +295,7 @@
         rows.push({ entity: String(item.entity), name: "name" in item && item.name ? String(item.name) : "" });
       }
     }
-    if (!rows.length) rows.push({ entity: "", name: "" });
+    if (!rows.length) rows.push({ entity: "", name: config?.name ? String(config.name) : "" });
     return rows;
   }
 
@@ -298,7 +313,9 @@
       else delete next.name;
     } else {
       delete next.entity;
-      delete next.name;
+      const draft = rows.find((row) => row.name.trim());
+      if (draft) next.name = draft.name;
+      else delete next.name;
     }
     if (rest.length) {
       next.entities = rest.map((row) => (row.name.trim() ? { entity: row.entity, name: row.name } : row.entity));
@@ -451,22 +468,24 @@
         const block = document.createElement("div");
         block.style.margin = "12px 0";
         const select = /** @type {HTMLSelectElement} */ (document.createElement("select"));
-        const blank = document.createElement("option");
-        blank.value = "";
-        blank.textContent = "Select entity";
-        select.appendChild(blank);
-        for (const choice of choices) {
-          const option = document.createElement("option");
-          option.value = choice.value;
-          option.textContent = choice.label;
-          select.appendChild(option);
-        }
+        const choicesFor = () => sensorChoices(this._hass, this._rows.map((item) => item.entity));
+        // ponytail: full option list only while focused; search/cap if opening the dropdown janks.
+        fillEntitySelect(select, choices.filter((choice) => choice.value === row.entity));
         select.value = row.entity;
+        select.addEventListener("focus", () => {
+          fillEntitySelect(select, choicesFor());
+          select.value = this._rows[index].entity;
+        });
+        select.addEventListener("blur", () => {
+          const current = this._rows[index].entity;
+          fillEntitySelect(select, choicesFor().filter((choice) => choice.value === current));
+          select.value = current;
+        });
         select.addEventListener("change", (ev) => {
           ev.stopPropagation();
           this._rows[index].entity = select.value;
           this._syncRowsKey();
-          if (this._rows.some((item) => item.entity)) this._emitRows();
+          this._emitRows();
         });
         const input = /** @type {HTMLInputElement} */ (document.createElement("input"));
         input.value = row.name;
