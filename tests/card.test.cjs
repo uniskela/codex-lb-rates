@@ -395,6 +395,39 @@ test("editing the primary row keeps an unsaved extra label", () => {
   assert.equal(extra.value, "later");
 });
 
+test("an unsaved row stays above the next sensor when the primary is cleared", () => {
+  const { hass, Card } = setup();
+  const editor = Card.getConfigElement();
+  editor.hass = hass;
+  editor.setConfig({ entity: "sensor.primary", entities: ["sensor.weekly"] });
+  editor._addButton.dispatchEvent({ type: "click", stopPropagation() {} });
+  editor._entitySelects[2].value = "sensor.weekly";
+  editor._entitySelects[2].dispatchEvent({ type: "change", stopPropagation() {} });
+  editor._nameInputs[1].value = "d1";
+  editor._nameInputs[1].dispatchEvent({ type: "input", stopPropagation() {} });
+  editor._entitySelects[1].value = "";
+  editor._entitySelects[1].dispatchEvent({ type: "change", stopPropagation() {} });
+  const plain = (value) => JSON.parse(JSON.stringify(value));
+  assert.deepEqual(plain(editor._rows), [
+    { entity: "sensor.primary", name: "" },
+    { entity: "", name: "d1" },
+    { entity: "sensor.weekly", name: "" },
+  ]);
+  editor._entitySelects[0].value = "";
+  editor._entitySelects[0].dispatchEvent({ type: "change", stopPropagation() {} });
+  assert.deepEqual(plain(editor._rows), [
+    { entity: "", name: "d1" },
+    { entity: "sensor.weekly", name: "" },
+  ]);
+  assert.equal(editor.event.detail.config.entity, undefined);
+  assert.equal(editor.event.detail.config.name, "d1");
+  editor.setConfig(editor.event.detail.config);
+  assert.deepEqual(plain(editor._rows), [
+    { entity: "", name: "d1" },
+    { entity: "sensor.weekly", name: "" },
+  ]);
+});
+
 test("row labels replace entity names on the card", () => {
   const { card } = setup({
     name: "5h pool",

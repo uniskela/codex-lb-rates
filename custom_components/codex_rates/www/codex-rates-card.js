@@ -338,14 +338,58 @@
     return next;
   }
 
-  /** Keep extra rows that have no sensor yet. They are not part of the saved config. */
-  function withDrafts(persisted, current) {
-    const rows = persisted.map((row) => ({ entity: row.entity, name: row.name }));
-    current.forEach((row, index) => {
-      if (!index || row.entity) return;
-      rows.splice(Math.min(index, rows.length), 0, { entity: "", name: row.name });
+  /** Indexes of rows applyRows will keep, in persisted order. */
+  function survivedIndexes(current) {
+    const list = current.length ? current : [{ entity: "", name: "" }];
+    const [head, ...rest] = list;
+    if (!head.entity && !head.name.trim()) {
+      const promotedAt = rest.findIndex((row) => row.entity);
+      if (promotedAt >= 0) {
+        const indexes = [promotedAt + 1];
+        rest.forEach((row, index) => {
+          if (index !== promotedAt && row.entity) indexes.push(index + 1);
+        });
+        return indexes;
+      }
+    }
+    const indexes = [0];
+    rest.forEach((row, index) => {
+      if (row.entity) indexes.push(index + 1);
     });
-    return rows;
+    return indexes;
+  }
+
+  /** Keep extra rows that have no sensor yet, in their place among the rows that were saved. */
+  function withDrafts(persisted, current) {
+    if (!current.length) return persisted.map((row) => ({ entity: row.entity, name: row.name }));
+    const survived = new Set(survivedIndexes(current));
+    const rows = [];
+    let next = 0;
+    current.forEach((row, index) => {
+      if (survived.has(index)) {
+        const kept = persisted[next++];
+        rows.push({ entity: kept.entity, name: kept.name });
+        return;
+      }
+      if (index > 0 && !row.entity) rows.push({ entity: "", name: row.name });
+    });
+    return rows.length ? rows : persisted.map((row) => ({ entity: row.entity, name: row.name }));
+  }
+
+  /** @param {Record<string, unknown>} config @param {{ entity: string, name: string }[]} current */
+  function settleRows(config, current) {
+    let rows = current.length ? current : [{ entity: "", name: "" }];
+    let saved = applyRows(config, rows);
+    if (config.type) saved.type = config.type;
+    for (let pass = 0; pass < 3; pass++) {
+      const persisted = rowsFromConfig(saved);
+      const next = withDrafts(persisted, rows);
+      if (JSON.stringify(next) === JSON.stringify(rows)) return { config: saved, rows, persisted };
+      rows = next;
+      saved = applyRows(config, rows);
+      if (config.type) saved.type = config.type;
+    }
+    return { config: saved, rows, persisted: rowsFromConfig(saved) };
   }
 
   /**
@@ -473,22 +517,19 @@
     }
 
     _emitRows() {
-      const config = applyRows(this._config, this._rows);
-      if (this._config.type) config.type = this._config.type;
-      const persisted = rowsFromConfig(config);
-      const rows = withDrafts(persisted, this._rows);
-      this._config = config;
-      if (JSON.stringify(rows) !== JSON.stringify(this._rows)) {
+      const settled = settleRows(this._config, this._rows);
+      this._config = settled.config;
+      if (JSON.stringify(settled.rows) !== JSON.stringify(this._rows)) {
         const active = typeof document !== "undefined" ? document.activeElement : null;
         const index = this._entitySelects.indexOf(active);
-        this._rows = rows;
+        this._rows = settled.rows;
         this._renderRows();
         if (index >= 0) this._entitySelects[Math.min(index, this._entitySelects.length - 1)]?.focus?.();
       } else {
-        this._rowsKey = JSON.stringify(persisted);
+        this._rowsKey = JSON.stringify(settled.persisted);
       }
       this._setFormData();
-      this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: settled.config }, bubbles: true, composed: true }));
     }
 
     _renderRows() {
