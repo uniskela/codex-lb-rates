@@ -301,26 +301,22 @@
       if (typeof item === "string") rows.push({ entity: item, name: "" });
       else if (item && typeof item === "object" && "entity" in item && item.entity) {
         rows.push({ entity: String(item.entity), name: "name" in item && item.name ? String(item.name) : "" });
-      } else if (item && typeof item === "object" && "name" in item && item.name) {
-        rows.push({ entity: "", name: String(item.name) });
       }
     }
     if (!rows.length) rows.push({ entity: "", name: config?.name ? String(config.name) : "" });
     return rows;
   }
 
+  /** @param {{ entity: string, name: string }} row */
+  function storedRow(row) {
+    if (!row.entity) return null;
+    return row.name.trim() ? { entity: row.entity, name: row.name } : row.entity;
+  }
+
   /**
    * @param {Record<string, unknown>} config
    * @param {{ entity: string, name: string }[]} rows
    */
-  /** @param {{ entity: string, name: string }} row */
-  function storedRow(row) {
-    if (row.entity && row.name.trim()) return { entity: row.entity, name: row.name };
-    if (row.entity) return row.entity;
-    if (row.name.trim()) return { name: row.name };
-    return null;
-  }
-
   function applyRows(config, rows) {
     const list = rows.length ? rows : [{ entity: "", name: "" }];
     let [head, ...rest] = list;
@@ -469,7 +465,18 @@
     _emitRows() {
       const config = applyRows(this._config, this._rows);
       if (this._config.type) config.type = this._config.type;
+      const rows = rowsFromConfig(config);
+      const key = JSON.stringify(rows);
       this._config = config;
+      if (key !== JSON.stringify(this._rows)) {
+        const active = typeof document !== "undefined" ? document.activeElement : null;
+        const index = this._entitySelects.indexOf(active);
+        this._rows = rows;
+        this._renderRows();
+        if (index >= 0) this._entitySelects[Math.min(index, this._entitySelects.length - 1)]?.focus?.();
+      } else {
+        this._syncRowsKey();
+      }
       this._setFormData();
       this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
     }
@@ -510,14 +517,14 @@
           ev.stopPropagation();
           this._rows[index].name = input.value;
           this._syncRowsKey();
-          this._emitRows();
+          if (index === 0 || this._rows[index].entity) this._emitRows();
         });
         input.addEventListener("change", (ev) => {
           ev.stopPropagation();
           input.value = input.value.trim();
           this._rows[index].name = input.value;
           this._syncRowsKey();
-          this._emitRows();
+          if (index === 0 || this._rows[index].entity) this._emitRows();
         });
         block.append(
           this._field(index === 0 ? "Primary entity" : "Additional entity", select),
